@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import org.slurmdroid.core.feature.FeatureRegistry
 import org.slurmdroid.core.ssh.CommandExecutor
 import org.slurmdroid.core.ssh.SshManager
+import org.slurmdroid.R
 import org.slurmdroid.ui.main.MainActivity
 import javax.inject.Inject
 
@@ -101,8 +102,7 @@ class SshForegroundService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("SlurmDroid")
             .setContentText("Monitoring cluster…")
-            // TODO: replace with a proper monochrome branded icon
-            .setSmallIcon(android.R.drawable.ic_menu_info_details)
+            .setSmallIcon(R.drawable.ic_notification)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .setContentIntent(contentIntent)

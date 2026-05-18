@@ -41,6 +41,7 @@ class SlurmFeature @Inject constructor(
             label = "History",
             icon = Icons.Default.History,
             content = { HistoryScreen() },
+            showInNav = false,
         ),
     )
 

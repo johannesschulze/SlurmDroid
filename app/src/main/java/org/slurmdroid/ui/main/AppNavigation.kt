@@ -50,7 +50,7 @@ fun AppNavigation(viewModel: AppViewModel = hiltViewModel()) {
 
     val bottomItems = buildList {
         add(NavItem("dashboard", "Dashboard", Icons.Default.Home))
-        featureRoutes.forEach { add(NavItem(it.route, it.label, it.icon)) }
+        featureRoutes.filter { it.showInNav }.forEach { add(NavItem(it.route, it.label, it.icon)) }
         add(NavItem("settings", "Settings", Icons.Default.Settings))
     }
 

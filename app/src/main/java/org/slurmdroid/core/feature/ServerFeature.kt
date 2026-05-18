@@ -9,6 +9,8 @@ data class FeatureRoute(
     val label: String,
     val icon: ImageVector,
     val content: @Composable () -> Unit,
+    /** False for detail screens that are reachable by in-app navigation but should not appear in the bottom bar. */
+    val showInNav: Boolean = true,
 )
 
 interface ServerFeature {

@@ -1,6 +1,7 @@
 package org.slurmdroid.features.slurm.ui.dashboard
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,10 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,77 +29,139 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.slurmdroid.features.slurm.domain.Partition
 import org.slurmdroid.features.slurm.domain.SlurmJob
+import org.slurmdroid.ui.main.LocalNavController
 
 @Composable
 fun SlurmDashboardCard(viewModel: SlurmDashboardViewModel = hiltViewModel()) {
     val partitions by viewModel.partitions.collectAsStateWithLifecycle()
     val jobs by viewModel.jobs.collectAsStateWithLifecycle()
+    val navController = LocalNavController.current
 
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
         Text("Slurm", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
 
         if (partitions.isNotEmpty()) {
-            Text("Partitions", style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "Partitions",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(8.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(partitions) { PartitionChip(it) }
-            }
+            PartitionTable(partitions)
             Spacer(Modifier.height(16.dp))
         }
 
-        if (jobs.isNotEmpty()) {
-            Text("Active Jobs (${jobs.size})", style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(modifier = Modifier.fillMaxWidth().clickable { navController.navigate("slurm/jobs") }) {
+            Text(
+                "Active Jobs (${jobs.size})",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(8.dp))
-            jobs.take(3).forEach { CompactJobRow(it) }
-            if (jobs.size > 3) {
-                Text("+ ${jobs.size - 3} more…",
-                    style = MaterialTheme.typography.bodySmall,
+            if (jobs.isNotEmpty()) {
+                jobs.take(3).forEach { CompactJobRow(it) }
+                if (jobs.size > 3) {
+                    Text(
+                        "+ ${jobs.size - 3} more…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            } else {
+                Text(
+                    "No active jobs",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp))
+                )
             }
-        } else {
-            Text("No active jobs", style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-private fun PartitionChip(partition: Partition) {
+private fun PartitionTable(partitions: List<Partition>) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+            Text(
+                "Partition",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(2f),
+            )
+            Text(
+                "Nodes",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1.5f),
+            )
+            Text(
+                "CPUs",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(2f),
+            )
+        }
+        HorizontalDivider()
+        partitions.forEach { PartitionRow(it) }
+    }
+}
+
+@Composable
+private fun PartitionRow(partition: Partition) {
     val dotColor = when {
         !partition.isUp -> MaterialTheme.colorScheme.error
-        partition.nodesAvailable > 0 -> Color(0xFF4CAF50)   // green
-        else -> Color(0xFFFFA726)                             // orange — up but all busy
+        partition.nodesAvailable > 0 -> Color(0xFF4CAF50)
+        else -> Color(0xFFFFA726)
     }
-    Card {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.weight(2f),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Box(
-                modifier = Modifier.size(8.dp).clip(CircleShape).background(dotColor)
+            Box(Modifier.size(7.dp).clip(CircleShape).background(dotColor))
+            Text(
+                if (partition.isDefault) "${partition.name}*" else partition.name,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
             )
-            Spacer(Modifier.width(8.dp))
-            Column {
-                Text(partition.name, style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold)
-                val nodeText = if (partition.isTotalKnown)
-                    "${partition.nodesAvailable}/${partition.nodesTotal} nodes idle"
-                else
-                    "${partition.nodesAvailable} nodes idle"
-                Text(nodeText, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (partition.cpusTotal > 0) {
-                    Spacer(Modifier.height(4.dp))
-                    LinearProgressIndicator(
-                        progress = { partition.cpuUsageFraction },
-                        modifier = Modifier.width(100.dp).height(4.dp).clip(CircleShape),
-                    )
-                }
+        }
+
+        val nodeText = when {
+            !partition.isUp -> "—"
+            partition.isTotalKnown -> "${partition.nodesAvailable} / ${partition.nodesTotal}"
+            else -> "${partition.nodesAvailable}"
+        }
+        Text(
+            nodeText,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1.5f),
+        )
+
+        if (partition.cpusTotal > 0 && partition.isUp) {
+            Row(
+                modifier = Modifier.weight(2f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                LinearProgressIndicator(
+                    progress = { partition.cpuUsageFraction },
+                    modifier = Modifier.weight(1f).height(4.dp).clip(CircleShape),
+                )
+                Text(
+                    "${(partition.cpuUsageFraction * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
+        } else {
+            Text("—", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(2f))
         }
     }
 }
@@ -114,8 +175,11 @@ private fun CompactJobRow(job: SlurmJob) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(job.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-            Text(job.jobId, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                job.jobId,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Spacer(Modifier.width(8.dp))
         if (job.isRunning && job.progressFraction != null) {
@@ -124,8 +188,11 @@ private fun CompactJobRow(job: SlurmJob) {
                 modifier = Modifier.width(64.dp).height(4.dp).clip(CircleShape),
             )
         } else {
-            Text(job.state, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                job.state,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

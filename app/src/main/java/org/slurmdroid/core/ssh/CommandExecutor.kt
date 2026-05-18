@@ -18,10 +18,15 @@ class CommandExecutor @Inject constructor(
      * The SSH session is reused across calls and reconnected automatically if dropped.
      */
     suspend fun execute(command: String): Result<String> {
-        return when (val sessionResult = sshManager.getSession()) {
-            is Result.Success -> withContext(Dispatchers.IO) { runCommand(command, sessionResult.data) }
-            else -> @Suppress("UNCHECKED_CAST") (sessionResult as Result<String>)
-        }
+        val sessionResult = sshManager.getSession()
+        if (sessionResult !is Result.Success) return sessionResult as Result<String>
+        val result = withContext(Dispatchers.IO) { runCommand(command, sessionResult.data) }
+        if (result !is Result.ConnectionError) return result
+        // Session died mid-command — evict the stale session and retry once with a fresh connection.
+        sshManager.disconnect()
+        val retrySession = sshManager.getSession()
+        if (retrySession !is Result.Success) return retrySession as Result<String>
+        return withContext(Dispatchers.IO) { runCommand(command, retrySession.data) }
     }
 
     private fun runCommand(command: String, session: com.jcraft.jsch.Session): Result<String> {

@@ -22,8 +22,11 @@ class MainDashboardViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            slurmRepository.poll()
-            _isRefreshing.value = false
+            try {
+                slurmRepository.poll()
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 }
