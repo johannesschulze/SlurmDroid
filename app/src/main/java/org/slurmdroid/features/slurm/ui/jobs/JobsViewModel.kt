@@ -9,11 +9,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.slurmdroid.core.Result
 import org.slurmdroid.features.slurm.data.SlurmRepository
+import org.slurmdroid.service.PollScheduler
 import javax.inject.Inject
 
 @HiltViewModel
 class JobsViewModel @Inject constructor(
     private val repository: SlurmRepository,
+    private val pollScheduler: PollScheduler,
 ) : ViewModel() {
     val jobs = repository.jobs
     val pollError = repository.pollError
@@ -34,6 +36,7 @@ class JobsViewModel @Inject constructor(
             when (val r = repository.cancelJob(jobId)) {
                 is Result.Success -> {
                     repository.poll()
+                    pollScheduler.scheduleBackoffAfterAction()
                     onResult(true, "Job $jobId cancelled")
                 }
                 is Result.AuthError -> onResult(false, "Auth error: ${r.message}")

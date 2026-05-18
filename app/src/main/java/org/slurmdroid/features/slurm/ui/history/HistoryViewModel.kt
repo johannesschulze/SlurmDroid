@@ -6,11 +6,13 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import org.slurmdroid.core.Result
 import org.slurmdroid.features.slurm.data.SlurmRepository
+import org.slurmdroid.service.PollScheduler
 import javax.inject.Inject
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val repository: SlurmRepository,
+    private val pollScheduler: PollScheduler,
 ) : ViewModel() {
     val history = repository.jobHistory
 
@@ -19,6 +21,7 @@ class HistoryViewModel @Inject constructor(
             when (val r = repository.submitJob(command)) {
                 is Result.Success -> {
                     repository.poll()
+                    pollScheduler.scheduleBackoffAfterAction()
                     onResult(true, "Job submitted: ${r.data}")
                 }
                 is Result.AuthError -> onResult(false, "Auth error: ${r.message}")

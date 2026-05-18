@@ -4,6 +4,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.slurmdroid.core.Result
 import org.slurmdroid.core.db.AppDatabase
 import org.slurmdroid.core.db.entities.JobHistory
@@ -35,11 +37,18 @@ class SlurmRepository @Inject constructor(
 
     val jobHistory: Flow<List<JobHistory>> = database.jobHistoryDao().observeAll()
 
+    private val pollMutex = Mutex()
+
     // ── polling ────────────────────────────────────────────────────────────────
 
     suspend fun poll() {
-        fetchPartitions()
-        fetchJobs()
+        if (!pollMutex.tryLock()) return   // skip if a poll is already in flight
+        try {
+            fetchPartitions()
+            fetchJobs()
+        } finally {
+            pollMutex.unlock()
+        }
     }
 
     private suspend fun fetchPartitions() {
