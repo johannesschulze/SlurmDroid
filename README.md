@@ -4,7 +4,7 @@ A native Android app for monitoring and controlling a Slurm HPC cluster from you
 
 > [!IMPORTANT]
 > The app has until now only been tested for the [HPC-Cluster of the universities of the state
-> of Baden Württenberg (Germany)](https://www.bwhpc.de/)
+> of Baden-Württemberg (Germany)](https://www.bwhpc.de/)
 
 ## Features
 
@@ -19,10 +19,10 @@ A native Android app for monitoring and controlling a Slurm HPC cluster from you
 
 ## Screenshots
 
-<img src="/assets/screenshots/screenshot_dashboard.png" width="300"/>
-<img src="/assets/screenshots/screenshot_job_history.png" width="300"/>
-<img src="/assets/screenshots/screenshot_job_details.png" width="300"/>
-<img src="/assets/screenshots/screenshot_settings.png" width="300"/>
+<img alt="Screenshot of the dashboard" src="/assets/screenshots/screenshot_dashboard.png" width="300"/>
+<img alt="Screenshot of job list" src="/assets/screenshots/screenshot_job_history.png" width="300"/>
+<img alt="Screenshot of the job details" src="/assets/screenshots/screenshot_job_details.png" width="300"/>
+<img alt="Screenshot of the settings" src="/assets/screenshots/screenshot_settings.png" width="300"/>
 
 ## Requirements
 
@@ -57,20 +57,20 @@ app/src/main/java/org/slurmdroid/
 
 The app is built around a `ServerFeature` plugin interface — Slurm is the first feature, and additional server tools (e.g. nnU-Net monitoring) can be added without touching the navigation or dashboard code.
 
-**SSH access** is centralised in a single `CommandExecutor`; no feature interacts with JSch directly.
+**SSH access** is centralized in a single `CommandExecutor`; no feature interacts with JSch directly.
 
 ## Tech stack
 
-| Layer | Library |
-|---|---|
-| UI | Jetpack Compose + Material 3 |
-| Navigation | Navigation Compose |
-| DI | Hilt |
-| SSH | JSch |
-| TOTP | java-otp |
-| Local DB | Room |
-| Secure storage | EncryptedSharedPreferences + Android Keystore |
-| Background work | WorkManager + Foreground Service |
+| Layer           | Library                                       |
+|-----------------|-----------------------------------------------|
+| UI              | Jetpack Compose + Material 3                  |
+| Navigation      | Navigation Compose                            |
+| DI              | Hilt                                          |
+| SSH             | JSch                                          |
+| TOTP            | java-otp                                      |
+| Local DB        | Room                                          |
+| Secure storage  | EncryptedSharedPreferences + Android Keystore |
+| Background work | WorkManager + Foreground Service              |
 
 ## Building
 
