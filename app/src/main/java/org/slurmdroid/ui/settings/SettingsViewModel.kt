@@ -9,7 +9,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.slurmdroid.core.AppPreferences
 import org.slurmdroid.core.Result
+import org.slurmdroid.core.notifications.JobNotificationManager
 import org.slurmdroid.core.ssh.KeystoreIdentity
 import org.slurmdroid.core.ssh.SshCredentialStore
 import org.slurmdroid.core.ssh.SshManager
@@ -25,6 +27,7 @@ data class SettingsUiState(
     val publicKeyText: String = "",
     val savedBanner: Boolean = false,
     val connectionTest: ConnectionTestState = ConnectionTestState.Idle,
+    val showRunningNotifications: Boolean = true,
 )
 
 sealed class ConnectionTestState {
@@ -38,6 +41,8 @@ sealed class ConnectionTestState {
 class SettingsViewModel @Inject constructor(
     private val credentialStore: SshCredentialStore,
     private val sshManager: SshManager,
+    private val appPreferences: AppPreferences,
+    private val jobNotificationManager: JobNotificationManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -54,6 +59,12 @@ class SettingsViewModel @Inject constructor(
     fun onUsername(v: String) = _uiState.update { it.copy(username = v) }
     fun onPassword(v: String) = _uiState.update { it.copy(password = v) }
     fun onTotpSeed(v: String) = _uiState.update { it.copy(totpSeed = v.trim().uppercase()) }
+
+    fun onShowRunningNotifications(v: Boolean) {
+        appPreferences.showRunningJobNotifications = v
+        if (!v) jobNotificationManager.cancelAllRunningNotifications()
+        _uiState.update { it.copy(showRunningNotifications = v) }
+    }
 
     /** Parses an `otpauth://totp/…?secret=BASE32&…` URI (from QR scan) and extracts the secret. */
     fun onTotpFromQr(uri: String) {
@@ -119,6 +130,7 @@ class SettingsViewModel @Inject constructor(
                 totpSeed = credentialStore.totpSeed,
                 hasKey = hasKey,
                 publicKeyText = if (hasKey) KeystoreIdentity.getOpenSshPublicKey(alias) else "",
+                showRunningNotifications = appPreferences.showRunningJobNotifications,
             )
         }
     }

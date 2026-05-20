@@ -2,6 +2,7 @@ package org.slurmdroid.features.slurm.ui.jobs
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,7 @@ import org.slurmdroid.features.slurm.domain.SlurmJob
 @Composable
 fun JobsScreen(
     onNavigateToHistory: () -> Unit,
+    onNavigateToDetail: (String) -> Unit = {},
     viewModel: JobsViewModel = hiltViewModel(),
 ) {
     val jobs by viewModel.jobs.collectAsStateWithLifecycle()
@@ -121,7 +123,7 @@ fun JobsScreen(
                     }
                     items(jobs, key = { it.jobId }) { job ->
                         SwipeToCancel(onDismiss = { jobToCancel = job }) {
-                            JobCard(job)
+                            JobCard(job, onClick = { onNavigateToDetail(job.jobId) })
                         }
                     }
                 }
@@ -169,8 +171,8 @@ private fun SwipeToCancel(
 }
 
 @Composable
-private fun JobCard(job: SlurmJob) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun JobCard(job: SlurmJob, onClick: () -> Unit = {}) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),

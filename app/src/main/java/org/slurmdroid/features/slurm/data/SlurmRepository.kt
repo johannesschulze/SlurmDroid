@@ -11,8 +11,13 @@ import org.slurmdroid.core.db.AppDatabase
 import org.slurmdroid.core.db.entities.JobHistory
 import org.slurmdroid.core.ssh.CommandExecutor
 import org.slurmdroid.core.ssh.SshCredentialStore
+import org.slurmdroid.features.slurm.domain.JobDetail
 import org.slurmdroid.features.slurm.domain.Partition
+import org.slurmdroid.features.slurm.domain.SacctJob
 import org.slurmdroid.features.slurm.domain.SlurmJob
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,6 +27,7 @@ class SlurmRepository @Inject constructor(
     private val sinfoParser: SinfoParser,
     private val sinfoTIdleParser: SinfoTIdleParser,
     private val squeueParser: SqueueParser,
+    private val sacctParser: SacctParser,
     private val credentialStore: SshCredentialStore,
     private val database: AppDatabase,
 ) {
@@ -35,6 +41,9 @@ class SlurmRepository @Inject constructor(
     private val _pollError = MutableStateFlow<String?>(null)
     val pollError: StateFlow<String?> = _pollError.asStateFlow()
 
+    private val _sacctJobs = MutableStateFlow<List<SacctJob>>(emptyList())
+    val sacctJobs: StateFlow<List<SacctJob>> = _sacctJobs.asStateFlow()
+
     val jobHistory: Flow<List<JobHistory>> = database.jobHistoryDao().observeAll()
 
     private val pollMutex = Mutex()
@@ -46,6 +55,7 @@ class SlurmRepository @Inject constructor(
         try {
             fetchPartitions()
             fetchJobs()
+            fetchSacctHistory()
         } finally {
             pollMutex.unlock()
         }
@@ -100,9 +110,119 @@ class SlurmRepository @Inject constructor(
         }
     }
 
+    private suspend fun fetchSacctHistory() {
+        val user = credentialStore.username
+        val thirtyDaysAgo = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT)
+            .format(Date(System.currentTimeMillis() - 30L * 24 * 3600 * 1000))
+        val result = commandExecutor.execute(
+            "sacct -u $user -X -S $thirtyDaysAgo" +
+                " -o \"JobID,JobName,State,Start,Elapsed,Partition\" --noheader -P"
+        )
+        if (result is Result.Success) {
+            val parsed = sacctParser.parse(result.data)
+            if (parsed is Result.Success && parsed.data.isNotEmpty()) {
+                _sacctJobs.value = parsed.data.sortedByDescending { it.startTimestamp ?: 0L }
+            }
+        }
+        // On failure keep existing data rather than wiping it
+    }
+
     private suspend fun updateHistoryStatuses(activeJobs: List<SlurmJob>) {
         val dao = database.jobHistoryDao()
         activeJobs.forEach { job -> dao.updateStatus(job.jobId, job.state) }
+    }
+
+    // ── job detail ────────────────────────────────────────────────────────────
+
+    /**
+     * Fetches detail for a single job.
+     * Uses sstat for jobs currently in the active list (RUNNING/PENDING),
+     * sacct for everything else.
+     */
+    suspend fun fetchJobDetail(jobId: String): Result<JobDetail> {
+        val active = _jobs.value.find { it.jobId == jobId }
+        return if (active != null) fetchRunningJobDetail(active)
+        else fetchHistoricalJobDetail(jobId)
+    }
+
+    private suspend fun fetchRunningJobDetail(job: SlurmJob): Result<JobDetail> {
+        // Try .batch step first (most useful for batch jobs), fall back to any step
+        var sstatOut = commandExecutor.execute(
+            "sstat -j ${job.jobId}.batch --format=JobID,AveCPU,AveRSS,MaxRSS,NTasks --noheader -P 2>/dev/null"
+        ).let { if (it is Result.Success && it.data.isNotBlank()) it.data else null }
+        if (sstatOut == null) {
+            sstatOut = commandExecutor.execute(
+                "sstat -j ${job.jobId} --format=JobID,AveCPU,AveRSS,MaxRSS,NTasks --noheader -P 2>/dev/null"
+            ).let { if (it is Result.Success) it.data else null }
+        }
+        val (avgCpu, maxRss, nTasks) = parseSstatFirstLine(sstatOut)
+        return Result.Success(
+            JobDetail(
+                jobId = job.jobId,
+                jobName = job.name,
+                state = job.state,
+                partition = job.partition,
+                elapsed = job.timeUsed,
+                timeLimit = job.timeLimit,
+                nodeList = if (job.isRunning) job.reason else "",
+                startTime = null,
+                endTime = null,
+                nCpus = null,
+                nNodes = null,
+                requestedMemory = null,
+                maxRss = maxRss,
+                exitCode = null,
+                avgCpu = avgCpu,
+                nTasks = nTasks,
+            )
+        )
+    }
+
+    private fun parseSstatFirstLine(output: String?): Triple<String?, String?, Int?> {
+        val line = output?.lines()?.firstOrNull { it.isNotBlank() } ?: return Triple(null, null, null)
+        val p = line.split('|')
+        if (p.size < 5) return Triple(null, null, null)
+        return Triple(
+            p[1].trim().takeIf { it.isNotBlank() && it != "00:00:00.000" },
+            p[3].trim().takeIf { it.isNotBlank() && it != "0" },
+            p[4].trim().toIntOrNull(),
+        )
+    }
+
+    private suspend fun fetchHistoricalJobDetail(jobId: String): Result<JobDetail> {
+        val result = commandExecutor.execute(
+            "sacct -j $jobId -X" +
+                " -o \"JobID,JobName,State,Start,End,Elapsed,Partition,NodeList,AllocCPUS,AllocNodes,ReqMem,MaxRSS,ExitCode\"" +
+                " --noheader -P"
+        )
+        if (result !is Result.Success) return result as Result<JobDetail>
+        val line = result.data.lines().firstOrNull { it.isNotBlank() }
+            ?: return Result.ParseError("No sacct data for job $jobId")
+        val p = line.split('|')
+        if (p.size < 13) return Result.ParseError("Unexpected sacct output for job $jobId")
+        val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT)
+        fun ts(s: String) = s.trim().takeIf { it.isNotBlank() && it != "None" && it != "Unknown" }
+            ?.let { runCatching { fmt.parse(it)?.time }.getOrNull() }
+        return Result.Success(
+            JobDetail(
+                jobId = p[0].trim(),
+                jobName = p[1].trim(),
+                state = p[2].trim().substringBefore(' '),
+                startTime = ts(p[3]),
+                endTime = ts(p[4]),
+                elapsed = p[5].trim(),
+                timeLimit = "",
+                partition = p[6].trim(),
+                nodeList = p[7].trim(),
+                nCpus = p[8].trim().toIntOrNull(),
+                nNodes = p[9].trim().toIntOrNull(),
+                requestedMemory = p[10].trim().takeIf { it.isNotBlank() },
+                maxRss = p[11].trim().takeIf { it.isNotBlank() && it != "0" },
+                exitCode = p[12].trim().takeIf { it.isNotBlank() },
+                avgCpu = null,
+                nTasks = null,
+            )
+        )
     }
 
     // ── actions ────────────────────────────────────────────────────────────────

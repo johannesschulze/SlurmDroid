@@ -4,12 +4,17 @@ import com.jcraft.jsch.JSch
 import com.jcraft.jsch.JSchException
 import com.jcraft.jsch.Session
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.slurmdroid.core.Result
 import javax.inject.Inject
 import javax.inject.Singleton
+
+enum class ConnectionStatus { Disconnected, Connecting, Connected, AuthError, ConnectionError }
 
 @Singleton
 class SshManager @Inject constructor(
@@ -18,6 +23,9 @@ class SshManager @Inject constructor(
 ) {
     private var session: Session? = null
     private val mutex = Mutex()
+
+    private val _connectionStatus = MutableStateFlow(ConnectionStatus.Disconnected)
+    val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
 
     /**
      * Returns an active [Session], connecting if necessary.
@@ -28,13 +36,24 @@ class SshManager @Inject constructor(
      */
     suspend fun getSession(): Result<Session> = mutex.withLock {
         val s = session
-        if (s != null && s.isConnected) return@withLock Result.Success(s)
-        connect()
+        if (s != null && s.isConnected) {
+            _connectionStatus.value = ConnectionStatus.Connected
+            return@withLock Result.Success(s)
+        }
+        _connectionStatus.value = ConnectionStatus.Connecting
+        val result = connect()
+        _connectionStatus.value = when (result) {
+            is Result.Success -> ConnectionStatus.Connected
+            is Result.AuthError -> ConnectionStatus.AuthError
+            else -> ConnectionStatus.ConnectionError
+        }
+        result
     }
 
     suspend fun disconnect() = mutex.withLock {
         session?.disconnect()
         session = null
+        _connectionStatus.value = ConnectionStatus.Disconnected
     }
 
     fun isConnected(): Boolean = session?.isConnected == true

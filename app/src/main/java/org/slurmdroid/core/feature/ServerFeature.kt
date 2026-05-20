@@ -11,6 +11,8 @@ data class FeatureRoute(
     val content: @Composable () -> Unit,
     /** False for detail screens that are reachable by in-app navigation but should not appear in the bottom bar. */
     val showInNav: Boolean = true,
+    /** Optional URI pattern for notification/external deep links, e.g. "slurmdroid://jobs". */
+    val deepLinkUri: String? = null,
 )
 
 interface ServerFeature {

@@ -1,5 +1,6 @@
 package org.slurmdroid.ui.main
 
+import android.content.Intent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -12,6 +13,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -22,7 +24,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navDeepLink
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.slurmdroid.core.feature.FeatureRegistry
 import org.slurmdroid.core.feature.ServerFeature
 import org.slurmdroid.ui.dashboard.MainDashboardScreen
@@ -34,6 +38,8 @@ class AppViewModel @Inject constructor(
     registry: FeatureRegistry,
 ) : ViewModel() {
     val features: List<ServerFeature> = registry.features
+    /** Receives new Intents from MainActivity.onNewIntent for deep-link handling. */
+    val pendingDeepLinkIntent = MutableStateFlow<Intent?>(null)
 }
 
 private data class NavItem(
@@ -54,6 +60,15 @@ fun AppNavigation(viewModel: AppViewModel = hiltViewModel()) {
         add(NavItem("settings", "Settings", Icons.Default.Settings))
     }
 
+    // Handle deep links delivered via onNewIntent (app already open)
+    val pendingDeepLink by viewModel.pendingDeepLinkIntent.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingDeepLink) {
+        pendingDeepLink?.let { intent ->
+            navController.handleDeepLink(intent)
+            viewModel.pendingDeepLinkIntent.value = null
+        }
+    }
+
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
@@ -61,15 +76,32 @@ fun AppNavigation(viewModel: AppViewModel = hiltViewModel()) {
         bottomBar = {
             NavigationBar {
                 bottomItems.forEach { item ->
+                    val routePrefix = item.route.substringBefore('/')
+                    val isInSubtree = currentRoute != null
+                        && currentRoute != item.route
+                        && currentRoute.startsWith("$routePrefix/")
+                        && bottomItems.none { it.route == currentRoute }
+                    val isSelected = currentRoute == item.route || isInSubtree
                     NavigationBarItem(
-                        selected = currentRoute == item.route,
+                        selected = isSelected,
                         onClick = {
-                            navController.navigate(item.route) {
-                                popUpTo(navController.graph.startDestinationId) {
-                                    saveState = true
+                            if (isInSubtree) {
+                                if (!navController.popBackStack(item.route, inclusive = false)) {
+                                    navController.navigate(item.route) {
+                                        popUpTo(navController.graph.startDestinationId) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                    }
                                 }
-                                launchSingleTop = true
-                                restoreState = true
+                            } else {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
                         },
                         icon = { Icon(item.icon, contentDescription = item.label) },
@@ -89,7 +121,12 @@ fun AppNavigation(viewModel: AppViewModel = hiltViewModel()) {
                     MainDashboardScreen(features = features)
                 }
                 featureRoutes.forEach { route ->
-                    composable(route.route) { route.content() }
+                    composable(
+                        route = route.route,
+                        deepLinks = route.deepLinkUri
+                            ?.let { listOf(navDeepLink { uriPattern = it }) }
+                            ?: emptyList(),
+                    ) { route.content() }
                 }
                 composable("settings") {
                     SettingsScreen()

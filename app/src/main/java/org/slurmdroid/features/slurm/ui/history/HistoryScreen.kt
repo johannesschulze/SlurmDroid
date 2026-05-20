@@ -1,5 +1,6 @@
 package org.slurmdroid.features.slurm.ui.history
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -28,7 +31,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,27 +41,48 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
-import org.slurmdroid.core.db.entities.JobHistory
+import org.slurmdroid.features.slurm.domain.SacctJob
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
-    val history by viewModel.history.collectAsStateWithLifecycle(initialValue = emptyList())
+fun HistoryScreen(
+    onNavigateToDetail: (String) -> Unit = {},
+    viewModel: HistoryViewModel = hiltViewModel(),
+) {
+    val history by viewModel.history.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var resubmitJob by remember { mutableStateOf<JobHistory?>(null) }
+    var resubmitJob by remember { mutableStateOf<SacctJob?>(null) }
+
+    val grouped = remember(history) {
+        val fmt = SimpleDateFormat("dd.MM.yy", Locale.getDefault())
+        val todayStr = fmt.format(Date())
+        val yesterdayStr = fmt.format(Date(System.currentTimeMillis() - 86_400_000L))
+        history.groupBy { job ->
+            val raw = job.startTimestamp?.let { fmt.format(Date(it)) } ?: "Unknown"
+            when (raw) {
+                todayStr -> "Today"
+                yesterdayStr -> "Yesterday"
+                else -> raw
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { viewModel.refresh() }
 
     resubmitJob?.let { job ->
         ResubmitDialog(
-            initialCommand = job.fullCommand,
+            initialCommand = job.fullCommand ?: "",
             onDismiss = { resubmitJob = null },
             onSubmit = { command ->
                 viewModel.resubmit(command) { _, msg ->
@@ -71,22 +97,41 @@ fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
         topBar = { TopAppBar(title = { Text("Job History") }) },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        if (history.isEmpty()) {
-            Box(
-                Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("No job history yet",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(history, key = { it.id }) { job ->
-                    HistoryCard(job, onResubmit = { resubmitJob = job })
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = viewModel::refresh,
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) {
+            if (history.isEmpty() && !isRefreshing) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No job history", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                ) {
+                    grouped.forEach { (dateLabel, jobs) ->
+                        stickyHeader(key = "header_$dateLabel") {
+                            Text(
+                                dateLabel,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.background)
+                                    .padding(vertical = 8.dp),
+                            )
+                        }
+                        items(jobs, key = { it.jobId }) { job ->
+                            HistoryCard(
+                                job,
+                                onClick = { onNavigateToDetail(job.jobId) },
+                                onResubmit = { resubmitJob = job },
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
                 }
             }
         }
@@ -94,8 +139,8 @@ fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun HistoryCard(job: JobHistory, onResubmit: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun HistoryCard(job: SacctJob, onClick: () -> Unit = {}, onResubmit: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -112,37 +157,52 @@ private fun HistoryCard(job: JobHistory, onResubmit: () -> Unit) {
                     maxLines = 1,
                 )
                 Text(
-                    job.lastKnownStatus,
+                    job.state,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = stateColor(job.state),
                 )
             }
-            val dateStr = remember(job.timestamp) {
-                SimpleDateFormat("dd.MM.yy HH:mm", Locale.getDefault()).format(Date(job.timestamp))
+            val dateStr = remember(job.startTimestamp) {
+                job.startTimestamp?.let {
+                    SimpleDateFormat("dd.MM.yy HH:mm", Locale.getDefault()).format(Date(it))
+                } ?: "—"
             }
             Text(
                 buildString {
                     append(dateStr)
                     if (job.partition.isNotBlank()) append(" · ${job.partition}")
-                    if (job.slurmJobId != null) append(" · #${job.slurmJobId}")
+                    append(" · #${job.jobId}")
+                    if (job.elapsed.isNotBlank() && job.elapsed != "00:00:00") append(" · ${job.elapsed}")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(4.dp))
-            OutlinedButton(
-                onClick = onResubmit,
-                modifier = Modifier.align(Alignment.End),
-            ) {
-                Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 4.dp).size(16.dp),
-                )
-                Text("Re-submit")
+            if (job.fullCommand != null) {
+                Spacer(Modifier.height(4.dp))
+                OutlinedButton(
+                    onClick = onResubmit,
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 4.dp).size(16.dp),
+                    )
+                    Text("Re-submit")
+                }
             }
         }
     }
+}
+
+@Composable
+private fun stateColor(state: String): Color = when (state.uppercase()) {
+    "COMPLETED"                    -> Color(0xFF4CAF50)
+    "FAILED", "TIMEOUT",
+    "OUT_OF_MEMORY", "NODE_FAIL"   -> MaterialTheme.colorScheme.error
+    "CANCELLED"                    -> Color(0xFFFFA726)
+    "RUNNING"                      -> MaterialTheme.colorScheme.primary
+    else                           -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 @Composable
@@ -172,9 +232,7 @@ private fun ResubmitDialog(
             TextButton(
                 onClick = { onSubmit(command) },
                 enabled = command.isNotBlank(),
-            ) {
-                Text("Submit")
-            }
+            ) { Text("Submit") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

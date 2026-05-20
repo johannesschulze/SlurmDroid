@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBar
@@ -235,6 +236,29 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                         color = MaterialTheme.colorScheme.error)
                 }
                 else -> {}
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // ── Notifications ─────────────────────────────────────────────────
+            SectionHeader("Notifications")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Persistent running-job notifications",
+                        style = MaterialTheme.typography.bodyMedium)
+                    Text("Show an ongoing notification while a job is running",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = state.showRunningNotifications,
+                    onCheckedChange = viewModel::onShowRunningNotifications,
+                    modifier = Modifier.padding(start = 16.dp),
+                )
             }
 
             Spacer(Modifier.height(4.dp))

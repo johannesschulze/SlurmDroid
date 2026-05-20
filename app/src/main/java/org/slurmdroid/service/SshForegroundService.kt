@@ -19,8 +19,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.slurmdroid.core.feature.FeatureRegistry
+import org.slurmdroid.core.notifications.JobNotificationManager
 import org.slurmdroid.core.ssh.CommandExecutor
 import org.slurmdroid.core.ssh.SshManager
+import org.slurmdroid.features.slurm.data.SlurmRepository
 import org.slurmdroid.R
 import org.slurmdroid.ui.main.MainActivity
 import javax.inject.Inject
@@ -40,6 +42,8 @@ class SshForegroundService : Service() {
     @Inject lateinit var sshManager: SshManager
     @Inject lateinit var commandExecutor: CommandExecutor
     @Inject lateinit var featureRegistry: FeatureRegistry
+    @Inject lateinit var slurmRepository: SlurmRepository
+    @Inject lateinit var jobNotificationManager: JobNotificationManager
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -84,9 +88,12 @@ class SshForegroundService : Service() {
 
     private suspend fun pollAllFeatures() {
         featureRegistry.features.forEach { feature ->
-            // Isolate each feature so one failure doesn't abort the others
             runCatching { feature.poll(commandExecutor) }
         }
+        jobNotificationManager.onPollComplete(
+            slurmRepository.jobs.value,
+            slurmRepository.sacctJobs.value,
+        )
     }
 
     private fun buildNotification(): android.app.Notification {
