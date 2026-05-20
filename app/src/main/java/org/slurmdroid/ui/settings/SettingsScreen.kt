@@ -35,14 +35,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,14 +72,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         return
     }
 
-    val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(state.savedBanner) {
-        if (state.savedBanner) snackbar.showSnackbar("Saved")
-    }
-
     Scaffold(
         topBar = { TopAppBar(title = { Text("Settings") }) },
-        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -100,7 +91,6 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 value = state.hostname,
                 onValueChange = viewModel::onHostname,
                 label = { Text("Hostname") },
-                placeholder = { Text("uc3.scc.kit.edu") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -259,16 +249,6 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                     onCheckedChange = viewModel::onShowRunningNotifications,
                     modifier = Modifier.padding(start = 16.dp),
                 )
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // ── Save ─────────────────────────────────────────────────────────
-            Button(
-                onClick = viewModel::save,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Save")
             }
 
             Spacer(Modifier.height(24.dp))

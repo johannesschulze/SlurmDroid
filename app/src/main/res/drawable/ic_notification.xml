@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Antenna stems (tilted outward) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8,8 L10,8 L8,3 L6,3 Z M14,8 L16,8 L18,3 L16,3 Z" />
+
+    <!-- Antenna caps (offset to match stem tilt) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7,3 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 M17,3 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+
+    <!-- Robot head with eye holes cut out (evenOdd) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M4,8 L20,8 Q22,8 22,10 L22,20 Q22,22 20,22 L4,22 Q2,22 2,20 L2,10 Q2,8 4,8 Z
+                          M9,14 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0
+                          M15,14 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+</vector>

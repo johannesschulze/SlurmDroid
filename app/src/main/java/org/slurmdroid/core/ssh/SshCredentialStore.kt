@@ -47,8 +47,7 @@ class SshCredentialStore @Inject constructor(@ApplicationContext context: Contex
         set(v) { prefs.edit().putString(KEY_ALIAS, v).commit() }
 
     fun isConfigured(): Boolean =
-        hostname.isNotBlank() && username.isNotBlank() &&
-            password.isNotBlank() && totpSeed.isNotBlank()
+        hostname.isNotBlank() && username.isNotBlank() && password.isNotBlank()
 
     companion object {
         private const val PREFS_FILE = "slurmdroid_ssh_creds"

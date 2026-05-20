@@ -1,5 +1,6 @@
 package org.slurmdroid.ui.dashboard
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -10,9 +11,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -21,6 +24,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -37,6 +41,7 @@ fun MainDashboardScreen(
 ) {
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
+    val pollCountdown by viewModel.pollCountdown.collectAsStateWithLifecycle()
 
     val statusColor by animateColorAsState(
         targetValue = when (connectionStatus) {
@@ -50,7 +55,22 @@ fun MainDashboardScreen(
     )
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("SlurmDroid") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("SlurmDroid") },
+                actions = {
+                    CircularProgressIndicator(
+                        progress = { pollCountdown },
+                        modifier = Modifier
+                            .padding(end = 16.dp)
+                            .size(20.dp),
+                        strokeWidth = 2.5.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    )
+                },
+            )
+        },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Box(
@@ -64,14 +84,35 @@ fun MainDashboardScreen(
                 onRefresh = viewModel::refresh,
                 modifier = Modifier.fillMaxSize(),
             ) {
-                LazyColumn(
+                Crossfade(
+                    targetState = connectionStatus == ConnectionStatus.Connected,
+                    label = "dashboard-content",
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(features, key = { it.featureId }) { feature ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            feature.DashboardCard()
+                ) { isConnected ->
+                    if (isConnected) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            items(features, key = { it.featureId }) { feature ->
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    feature.DashboardCard()
+                                }
+                            }
+                        }
+                    } else {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                when (connectionStatus) {
+                                    ConnectionStatus.Connecting -> "Connecting to cluster…"
+                                    ConnectionStatus.AuthError -> "Authentication failed — check Settings"
+                                    ConnectionStatus.ConnectionError -> "Connection failed — check Settings"
+                                    else -> "Not connected"
+                                },
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
                         }
                     }
                 }

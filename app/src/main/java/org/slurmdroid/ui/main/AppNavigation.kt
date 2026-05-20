@@ -1,21 +1,32 @@
 package org.slurmdroid.ui.main
 
 import android.content.Intent
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.ui.Modifier
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -29,6 +40,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.slurmdroid.core.feature.FeatureRegistry
 import org.slurmdroid.core.feature.ServerFeature
+import org.slurmdroid.core.ssh.ManualOtpRequest
 import org.slurmdroid.ui.dashboard.MainDashboardScreen
 import org.slurmdroid.ui.settings.SettingsScreen
 import javax.inject.Inject
@@ -36,6 +48,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AppViewModel @Inject constructor(
     registry: FeatureRegistry,
+    val manualOtpRequest: ManualOtpRequest,
 ) : ViewModel() {
     val features: List<ServerFeature> = registry.features
     /** Receives new Intents from MainActivity.onNewIntent for deep-link handling. */
@@ -58,6 +71,15 @@ fun AppNavigation(viewModel: AppViewModel = hiltViewModel()) {
         add(NavItem("dashboard", "Dashboard", Icons.Default.Home))
         featureRoutes.filter { it.showInNav }.forEach { add(NavItem(it.route, it.label, it.icon)) }
         add(NavItem("settings", "Settings", Icons.Default.Settings))
+    }
+
+    // OTP dialog — shown when no TOTP seed is configured and server requests an OTP
+    val otpPending by viewModel.manualOtpRequest.isPending.collectAsStateWithLifecycle()
+    if (otpPending) {
+        OtpDialog(
+            onSubmit = { otp -> viewModel.manualOtpRequest.submit(otp) },
+            onDismiss = { viewModel.manualOtpRequest.cancel() },
+        )
     }
 
     // Handle deep links delivered via onNewIntent (app already open)
@@ -134,4 +156,37 @@ fun AppNavigation(viewModel: AppViewModel = hiltViewModel()) {
             }
         }
     }
+}
+
+@Composable
+private fun OtpDialog(onSubmit: (String) -> Unit, onDismiss: () -> Unit) {
+    var otp by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("One-Time Password") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "The server is requesting an OTP but no TOTP secret is configured. " +
+                        "Enter your current one-time password.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = otp,
+                    onValueChange = { otp = it.trim() },
+                    label = { Text("OTP") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSubmit(otp) }, enabled = otp.isNotBlank()) {
+                Text("Submit")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }

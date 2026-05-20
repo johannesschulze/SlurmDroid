@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,7 +27,6 @@ data class SettingsUiState(
     val totpSeed: String = "",
     val hasKey: Boolean = false,
     val publicKeyText: String = "",
-    val savedBanner: Boolean = false,
     val connectionTest: ConnectionTestState = ConnectionTestState.Idle,
     val showRunningNotifications: Boolean = true,
 )
@@ -54,11 +55,11 @@ class SettingsViewModel @Inject constructor(
 
     // ── field updates ──────────────────────────────────────────────────────────
 
-    fun onHostname(v: String) = _uiState.update { it.copy(hostname = v) }
-    fun onPort(v: String) = _uiState.update { it.copy(port = v.filter(Char::isDigit).take(5)) }
-    fun onUsername(v: String) = _uiState.update { it.copy(username = v) }
-    fun onPassword(v: String) = _uiState.update { it.copy(password = v) }
-    fun onTotpSeed(v: String) = _uiState.update { it.copy(totpSeed = v.trim().uppercase()) }
+    fun onHostname(v: String) { _uiState.update { it.copy(hostname = v) }; autoSave() }
+    fun onPort(v: String) { _uiState.update { it.copy(port = v.filter(Char::isDigit).take(5)) }; autoSave() }
+    fun onUsername(v: String) { _uiState.update { it.copy(username = v) }; autoSave() }
+    fun onPassword(v: String) { _uiState.update { it.copy(password = v) }; autoSave() }
+    fun onTotpSeed(v: String) { _uiState.update { it.copy(totpSeed = v.trim().uppercase()) }; autoSave() }
 
     fun onShowRunningNotifications(v: Boolean) {
         appPreferences.showRunningJobNotifications = v
@@ -71,11 +72,18 @@ class SettingsViewModel @Inject constructor(
         val secret = Regex("[?&]secret=([^&]+)", RegexOption.IGNORE_CASE)
             .find(uri)?.groupValues?.get(1) ?: return
         _uiState.update { it.copy(totpSeed = secret.trim().uppercase()) }
+        autoSave()
     }
 
     // ── actions ────────────────────────────────────────────────────────────────
 
-    fun save() {
+    private var saveJob: Job? = null
+    private fun autoSave() {
+        saveJob?.cancel()
+        saveJob = viewModelScope.launch { delay(800); save() }
+    }
+
+    private fun save() {
         with(_uiState.value) {
             credentialStore.hostname = hostname.trim()
             credentialStore.port = port.toIntOrNull() ?: 22
@@ -83,11 +91,7 @@ class SettingsViewModel @Inject constructor(
             credentialStore.password = password
             credentialStore.totpSeed = totpSeed
         }
-        _uiState.update { it.copy(savedBanner = true, connectionTest = ConnectionTestState.Idle) }
-        viewModelScope.launch {
-            kotlinx.coroutines.delay(2_000)
-            _uiState.update { it.copy(savedBanner = false) }
-        }
+        _uiState.update { it.copy(connectionTest = ConnectionTestState.Idle) }
     }
 
     fun generateKey() {

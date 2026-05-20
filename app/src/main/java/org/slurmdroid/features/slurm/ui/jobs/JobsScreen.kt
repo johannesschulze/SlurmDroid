@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -61,6 +63,7 @@ fun JobsScreen(
     val jobs by viewModel.jobs.collectAsStateWithLifecycle()
     val pollError by viewModel.pollError.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val pollCountdown by viewModel.pollCountdown.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var jobToCancel by remember { mutableStateOf<SlurmJob?>(null) }
@@ -87,7 +90,22 @@ fun JobsScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Active Jobs") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Active Jobs") },
+                actions = {
+                    CircularProgressIndicator(
+                        progress = { pollCountdown },
+                        modifier = Modifier
+                            .padding(end = 16.dp)
+                            .size(20.dp),
+                        strokeWidth = 2.5.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    )
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             FloatingActionButton(onClick = onNavigateToHistory) {

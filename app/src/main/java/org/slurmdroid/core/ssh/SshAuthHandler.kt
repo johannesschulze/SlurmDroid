@@ -2,6 +2,7 @@ package org.slurmdroid.core.ssh
 
 import com.jcraft.jsch.UIKeyboardInteractive
 import com.jcraft.jsch.UserInfo
+import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -11,11 +12,15 @@ import javax.inject.Singleton
  * Cluster prompt order: OTP first, then password.
  * The OTP prompt is detected by keyword matching against known prompt strings.
  * Adjust OTP_KEYWORDS if the cluster uses a different prompt text.
+ *
+ * When an OTP is required but no TOTP seed is configured, [ManualOtpRequest] is used
+ * to surface a dialog to the user and wait (blocking) for their input.
  */
 @Singleton
 class SshAuthHandler @Inject constructor(
     private val credentialStore: SshCredentialStore,
     private val totpGenerator: TotpGenerator,
+    private val manualOtpRequest: ManualOtpRequest,
 ) : UserInfo, UIKeyboardInteractive {
 
     // ---  UIKeyboardInteractive  ---
@@ -30,7 +35,13 @@ class SshAuthHandler @Inject constructor(
         Array(prompt.size) { i ->
             val p = prompt[i].lowercase()
             if (OTP_KEYWORDS.any { p.contains(it) }) {
-                totpGenerator.generate(credentialStore.totpSeed) ?: return null
+                if (credentialStore.totpSeed.isBlank()) {
+                    // No seed stored — block and ask the user for the OTP directly
+                    runBlocking { manualOtpRequest.requestOtp() }
+                } else {
+                    totpGenerator.generate(credentialStore.totpSeed)
+                        ?: throw IllegalStateException("TOTP generation failed")
+                }
             } else {
                 credentialStore.password
             }

@@ -18,6 +18,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.slurmdroid.core.PollStateHolder
 import org.slurmdroid.core.feature.FeatureRegistry
 import org.slurmdroid.core.notifications.JobNotificationManager
 import org.slurmdroid.core.ssh.CommandExecutor
@@ -44,6 +45,7 @@ class SshForegroundService : Service() {
     @Inject lateinit var featureRegistry: FeatureRegistry
     @Inject lateinit var slurmRepository: SlurmRepository
     @Inject lateinit var jobNotificationManager: JobNotificationManager
+    @Inject lateinit var pollStateHolder: PollStateHolder
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -81,7 +83,7 @@ class SshForegroundService : Service() {
         scope.launch {
             while (isActive) {
                 pollAllFeatures()
-                delay(POLL_INTERVAL_MS)
+                delay(pollStateHolder.intervalMs)
             }
         }
     }
@@ -90,6 +92,7 @@ class SshForegroundService : Service() {
         featureRegistry.features.forEach { feature ->
             runCatching { feature.poll(commandExecutor) }
         }
+        pollStateHolder.lastPollCompletedAt.value = System.currentTimeMillis()
         jobNotificationManager.onPollComplete(
             slurmRepository.jobs.value,
             slurmRepository.sacctJobs.value,
@@ -119,7 +122,6 @@ class SshForegroundService : Service() {
     companion object {
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "slurmdroid_monitor"
-        private const val POLL_INTERVAL_MS = 60_000L
 
         /** Send this action to trigger an out-of-schedule poll (e.g. after job submit/cancel). */
         const val ACTION_POLL_NOW = "org.slurmdroid.action.POLL_NOW"
