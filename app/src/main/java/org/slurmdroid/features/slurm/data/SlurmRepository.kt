@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.slurmdroid.core.Result
+import org.slurmdroid.core.asError
 import org.slurmdroid.core.db.AppDatabase
 import org.slurmdroid.core.db.entities.JobHistory
 import org.slurmdroid.core.ssh.CommandExecutor
@@ -195,7 +196,7 @@ class SlurmRepository @Inject constructor(
                 " -o \"JobID,JobName,State,Start,End,Elapsed,Partition,NodeList,AllocCPUS,AllocNodes,ReqMem,MaxRSS,ExitCode\"" +
                 " --noheader -P"
         )
-        if (result !is Result.Success) return result as Result<JobDetail>
+        if (result !is Result.Success) return result.asError()
         val line = result.data.lines().firstOrNull { it.isNotBlank() }
             ?: return Result.ParseError("No sacct data for job $jobId")
         val p = line.split('|')
@@ -239,7 +240,7 @@ class SlurmRepository @Inject constructor(
                 saveToHistory(command, jobId)
                 Result.Success(jobId ?: result.data.trim())
             }
-            else -> @Suppress("UNCHECKED_CAST") (result as Result<String>)
+            else -> result.asError()
         }
     }
 

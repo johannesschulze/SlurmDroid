@@ -18,7 +18,7 @@ import javax.inject.Singleton
 
 @Singleton
 class JobNotificationManager @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val appPreferences: AppPreferences,
 ) {
     private val nm = context.getSystemService(NotificationManager::class.java)

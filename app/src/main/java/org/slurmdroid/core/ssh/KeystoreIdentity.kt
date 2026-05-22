@@ -27,7 +27,9 @@ class KeystoreIdentity(private val keyAlias: String) : Identity {
     override fun getAlgName(): String = ALG_NAME
     override fun getName(): String = keyAlias
     override fun isEncrypted(): Boolean = false
+    @Deprecated("Deprecated in JSch Identity interface")
     override fun setPassphrase(passphrase: ByteArray?): Boolean = true
+    @Deprecated("Deprecated in JSch Identity interface")
     override fun decrypt(): Boolean = true
     override fun clear() {}
 

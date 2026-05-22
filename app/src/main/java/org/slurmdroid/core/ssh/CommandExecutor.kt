@@ -5,6 +5,7 @@ import com.jcraft.jsch.JSchException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slurmdroid.core.Result
+import org.slurmdroid.core.asError
 import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,13 +20,13 @@ class CommandExecutor @Inject constructor(
      */
     suspend fun execute(command: String): Result<String> {
         val sessionResult = sshManager.getSession()
-        if (sessionResult !is Result.Success) return sessionResult as Result<String>
+        if (sessionResult !is Result.Success) return sessionResult.asError()
         val result = withContext(Dispatchers.IO) { runCommand(command, sessionResult.data) }
         if (result !is Result.ConnectionError) return result
         // Session died mid-command — evict the stale session and retry once with a fresh connection.
         sshManager.disconnect()
         val retrySession = sshManager.getSession()
-        if (retrySession !is Result.Success) return retrySession as Result<String>
+        if (retrySession !is Result.Success) return retrySession.asError()
         return withContext(Dispatchers.IO) { runCommand(command, retrySession.data) }
     }
 
