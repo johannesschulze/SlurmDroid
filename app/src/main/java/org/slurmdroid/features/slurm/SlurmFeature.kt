@@ -13,6 +13,7 @@ import org.slurmdroid.core.ssh.CommandExecutor
 import org.slurmdroid.features.slurm.data.SlurmRepository
 import org.slurmdroid.features.slurm.ui.dashboard.SlurmDashboardCard
 import org.slurmdroid.features.slurm.ui.detail.JobDetailScreen
+import org.slurmdroid.features.slurm.ui.detail.LogViewScreen
 import org.slurmdroid.features.slurm.ui.history.HistoryScreen
 import org.slurmdroid.features.slurm.ui.jobs.JobsScreen
 import org.slurmdroid.ui.main.LocalNavController
@@ -36,7 +37,6 @@ class SlurmFeature @Inject constructor(
             content = {
                 val nav = LocalNavController.current
                 JobsScreen(
-                    onNavigateToHistory = { nav.navigate("slurm/history") },
                     onNavigateToDetail = { jobId -> nav.navigate("slurm/job/$jobId") },
                 )
             },
@@ -49,7 +49,6 @@ class SlurmFeature @Inject constructor(
                 val nav = LocalNavController.current
                 HistoryScreen(onNavigateToDetail = { jobId -> nav.navigate("slurm/job/$jobId") })
             },
-            showInNav = false,
         ),
         FeatureRoute(
             route = "slurm/job/{jobId}",
@@ -58,6 +57,15 @@ class SlurmFeature @Inject constructor(
             deepLinkUri = "slurmdroid://job/{jobId}",
             content = { JobDetailScreen() },
             showInNav = false,
+            subtreeOf = "slurm/jobs",
+        ),
+        FeatureRoute(
+            route = "slurm/logview/{logFile}",
+            label = "Log",
+            icon = Icons.Default.Info,
+            content = { LogViewScreen() },
+            showInNav = false,
+            subtreeOf = "slurm/jobs",
         ),
     )
 

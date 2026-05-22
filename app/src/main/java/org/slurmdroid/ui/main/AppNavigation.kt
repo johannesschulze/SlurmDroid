@@ -98,11 +98,10 @@ fun AppNavigation(viewModel: AppViewModel = hiltViewModel()) {
         bottomBar = {
             NavigationBar {
                 bottomItems.forEach { item ->
-                    val routePrefix = item.route.substringBefore('/')
                     val isInSubtree = currentRoute != null
                         && currentRoute != item.route
-                        && currentRoute.startsWith("$routePrefix/")
                         && bottomItems.none { it.route == currentRoute }
+                        && featureRoutes.any { it.subtreeOf == item.route && it.route == currentRoute }
                     val isSelected = currentRoute == item.route || isInSubtree
                     NavigationBarItem(
                         selected = isSelected,

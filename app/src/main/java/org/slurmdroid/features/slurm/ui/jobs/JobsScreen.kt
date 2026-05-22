@@ -18,8 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,21 +52,24 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.slurmdroid.features.slurm.domain.SlurmJob
+import org.slurmdroid.features.slurm.ui.SubmitJobDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JobsScreen(
-    onNavigateToHistory: () -> Unit,
     onNavigateToDetail: (String) -> Unit = {},
     viewModel: JobsViewModel = hiltViewModel(),
 ) {
     val jobs by viewModel.jobs.collectAsStateWithLifecycle()
+    val partitions by viewModel.partitions.collectAsStateWithLifecycle()
+    val slurmScripts by viewModel.slurmScripts.collectAsStateWithLifecycle()
     val pollError by viewModel.pollError.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val pollCountdown by viewModel.pollCountdown.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var jobToCancel by remember { mutableStateOf<SlurmJob?>(null) }
+    var showSubmitDialog by remember { mutableStateOf(false) }
 
     jobToCancel?.let { job ->
         AlertDialog(
@@ -85,6 +88,21 @@ fun JobsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { jobToCancel = null }) { Text("Keep") }
+            },
+        )
+    }
+
+    if (showSubmitDialog) {
+        SubmitJobDialog(
+            partitions = partitions,
+            slurmScripts = slurmScripts,
+            initialState = remember { viewModel.lastFormState() },
+            onDismiss = { showSubmitDialog = false },
+            onSubmit = { command ->
+                showSubmitDialog = false
+                viewModel.submitJob(command) { _, msg ->
+                    scope.launch { snackbar.showSnackbar(msg) }
+                }
             },
         )
     }
@@ -108,8 +126,8 @@ fun JobsScreen(
         },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToHistory) {
-                Icon(Icons.Default.History, contentDescription = "Job history")
+            FloatingActionButton(onClick = { viewModel.refreshSlurmScripts(); showSubmitDialog = true }) {
+                Icon(Icons.Default.Add, contentDescription = "Submit job")
             }
         },
     ) { padding ->

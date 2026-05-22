@@ -1,5 +1,6 @@
 package org.slurmdroid.features.slurm.ui.detail
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,11 +13,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -72,14 +78,14 @@ fun JobDetailScreen(viewModel: JobDetailViewModel = hiltViewModel()) {
                     Text(s.message, color = MaterialTheme.colorScheme.error)
                     TextButton(onClick = viewModel::retry) { Text("Retry") }
                 }
-                is UiState.Success -> DetailContent(s.detail)
+                is UiState.Success -> DetailContent(s.detail, s.logFiles)
             }
         }
     }
 }
 
 @Composable
-private fun DetailContent(d: JobDetail) {
+private fun DetailContent(d: JobDetail, logFiles: List<String> = emptyList()) {
     val isRunning = d.state == "RUNNING"
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -163,6 +169,91 @@ private fun DetailContent(d: JobDetail) {
                 Section("Outcome") {
                     if (d.exitCode != null) DetailRow("Exit code", d.exitCode)
                     if (d.maxRss != null) DetailRow("Max RSS", d.maxRss)
+                }
+            }
+        }
+
+        // ── Array tasks ───────────────────────────────────────────────────────
+        if (d.arrayChildren.isNotEmpty()) {
+            item {
+                val navController = LocalNavController.current
+                Section("Array tasks (${d.arrayChildren.size})") {
+                    d.arrayChildren.forEach { child ->
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            tonalElevation = 1.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { navController.navigate("slurm/job/${child.jobId}") },
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "#${child.jobId}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (child.elapsed.isNotBlank() && child.elapsed != "00:00:00") {
+                                        Text(
+                                            child.elapsed,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Text(
+                                        child.state,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = stateColor(child.state),
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+            }
+        }
+
+        // ── Submission command ────────────────────────────────────────────────
+        if (d.fullCommand != null) {
+            item {
+                Section("Submission") {
+                    SelectionContainer {
+                        Text(
+                            d.fullCommand,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── Log files ─────────────────────────────────────────────────────────
+        if (logFiles.isNotEmpty()) {
+            item {
+                val navController = LocalNavController.current
+                Section("Log files") {
+                    logFiles.forEach { fileName ->
+                        val isErr = fileName.endsWith(".err")
+                        FilledTonalButton(
+                            onClick = { navController.navigate("slurm/logview/$fileName") },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(
+                                if (isErr) Icons.Default.ErrorOutline else Icons.Default.TextSnippet,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 8.dp),
+                            )
+                            Text(fileName, modifier = Modifier.weight(1f), maxLines = 1)
+                        }
+                    }
                 }
             }
         }

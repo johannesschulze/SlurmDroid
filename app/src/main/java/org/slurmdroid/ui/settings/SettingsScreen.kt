@@ -230,6 +230,20 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
 
             Spacer(Modifier.height(4.dp))
 
+            // ── Slurm ─────────────────────────────────────────────────────────
+            SectionHeader("Slurm")
+            OutlinedTextField(
+                value = state.logDirectory,
+                onValueChange = viewModel::onLogDirectory,
+                label = { Text("Log directory") },
+                placeholder = { Text("slurm_logs") },
+                supportingText = { Text("Relative to home, or absolute path") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(Modifier.height(4.dp))
+
             // ── Notifications ─────────────────────────────────────────────────
             SectionHeader("Notifications")
             Row(

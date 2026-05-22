@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.slurmdroid.core.AppPreferences
 import org.slurmdroid.core.Result
 import org.slurmdroid.core.asError
 import org.slurmdroid.core.db.AppDatabase
@@ -31,6 +32,7 @@ class SlurmRepository @Inject constructor(
     private val sacctParser: SacctParser,
     private val credentialStore: SshCredentialStore,
     private val database: AppDatabase,
+    private val appPreferences: AppPreferences,
 ) {
     private val _partitions = MutableStateFlow<List<Partition>>(emptyList())
     val partitions: StateFlow<List<Partition>> = _partitions.asStateFlow()
@@ -142,8 +144,70 @@ class SlurmRepository @Inject constructor(
      */
     suspend fun fetchJobDetail(jobId: String): Result<JobDetail> {
         val active = _jobs.value.find { it.jobId == jobId }
-        return if (active != null) fetchRunningJobDetail(active)
-        else fetchHistoricalJobDetail(jobId)
+        val result = if (active != null) fetchRunningJobDetail(active)
+                     else fetchHistoricalJobDetail(jobId)
+        val cmd = database.jobHistoryDao().getCommandByJobId(jobId)
+        val children = if ('_' !in jobId) findArrayChildren(jobId) else emptyList()
+
+        if (result is Result.Success) {
+            return Result.Success(result.data.copy(
+                jobId = jobId,
+                fullCommand = cmd,
+                arrayChildren = children,
+            ))
+        }
+
+        // sacct returned no usable parent row but we have children — synthesise
+        if (children.isNotEmpty()) {
+            val first = children.first()
+            val dominantState = listOf(
+                "FAILED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL",
+                "CANCELLED", "RUNNING", "PENDING", "COMPLETED",
+            ).firstOrNull { s -> children.any { it.state == s } } ?: first.state
+            return Result.Success(
+                JobDetail(
+                    jobId = jobId,
+                    jobName = first.jobName,
+                    state = dominantState,
+                    partition = first.partition,
+                    elapsed = "",
+                    timeLimit = "",
+                    nodeList = "",
+                    startTime = first.startTimestamp,
+                    endTime = null,
+                    nCpus = null,
+                    nNodes = null,
+                    requestedMemory = null,
+                    maxRss = null,
+                    exitCode = null,
+                    avgCpu = null,
+                    nTasks = children.size,
+                    fullCommand = cmd,
+                    arrayChildren = children,
+                )
+            )
+        }
+        return result
+    }
+
+    private suspend fun findArrayChildren(parentJobId: String): List<SacctJob> {
+        fun isChild(id: String) =
+            id.startsWith("${parentJobId}_") && id.substringAfterLast('_').toIntOrNull() != null
+
+        val cached = _sacctJobs.value.filter { isChild(it.jobId) }
+        if (cached.isNotEmpty())
+            return cached.sortedBy { it.jobId.substringAfterLast('_').toIntOrNull() ?: 0 }
+
+        val result = commandExecutor.execute(
+            "sacct -j $parentJobId -X" +
+                " -o \"JobID,JobName,State,Start,Elapsed,Partition\" --noheader -P"
+        )
+        if (result !is Result.Success) return emptyList()
+        val parsed = sacctParser.parse(result.data)
+        if (parsed !is Result.Success) return emptyList()
+        return parsed.data
+            .filter { isChild(it.jobId) }
+            .sortedBy { it.jobId.substringAfterLast('_').toIntOrNull() ?: 0 }
     }
 
     private suspend fun fetchRunningJobDetail(job: SlurmJob): Result<JobDetail> {
@@ -269,4 +333,36 @@ class SlurmRepository @Inject constructor(
     /** Extracts the Slurm job ID from sbatch output: "Submitted batch job 12345" */
     private fun extractJobId(output: String): String? =
         Regex("""Submitted batch job (\S+)""").find(output)?.groupValues?.get(1)
+
+    // ── log files ──────────────────────────────────────────────────────────────
+
+    /** Returns paths (relative to home) of all .slurm files reachable from the home directory. */
+    suspend fun findSlurmScripts(): List<String> {
+        val result = commandExecutor.execute(
+            "find . -maxdepth 5 -type f,l -name '*.slurm' -o -name '*.sh'  2>/dev/null"
+        )
+        return if (result is Result.Success)
+            result.data.lines().filter { it.isNotBlank() }.sorted()
+        else emptyList()
+    }
+
+    /** Returns filenames (not full paths) for all log/err files belonging to [jobId]. */
+    suspend fun findLogFiles(jobId: String): List<String> {
+        val dirPath = resolvedLogDir()
+        val result = commandExecutor.execute(
+            "ls $dirPath 2>/dev/null | grep -E '${jobId}'"
+        )
+        return if (result is Result.Success)
+            result.data.lines().filter { it.isNotBlank() }
+        else emptyList()
+    }
+
+    /** Reads the last 500 lines of a log file in the configured log directory. */
+    suspend fun readLogFile(fileName: String): Result<String> =
+        commandExecutor.execute("tail -n 500 ${resolvedLogDir()}/$fileName 2>&1")
+
+    private fun resolvedLogDir(): String {
+        val dir = appPreferences.logDirectory.ifBlank { "slurm_logs" }
+        return if (dir.startsWith("/")) dir else "~/$dir"
+    }
 }

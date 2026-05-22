@@ -16,4 +16,7 @@ interface JobHistoryDao {
 
     @Query("UPDATE job_history SET lastKnownStatus = :status WHERE slurmJobId = :slurmJobId")
     suspend fun updateStatus(slurmJobId: String, status: String)
+
+    @Query("SELECT fullCommand FROM job_history WHERE slurmJobId = :slurmJobId LIMIT 1")
+    suspend fun getCommandByJobId(slurmJobId: String): String?
 }

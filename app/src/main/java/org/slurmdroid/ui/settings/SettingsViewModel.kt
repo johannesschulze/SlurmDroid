@@ -29,6 +29,7 @@ data class SettingsUiState(
     val publicKeyText: String = "",
     val connectionTest: ConnectionTestState = ConnectionTestState.Idle,
     val showRunningNotifications: Boolean = true,
+    val logDirectory: String = "slurm_logs",
 )
 
 sealed class ConnectionTestState {
@@ -61,6 +62,8 @@ class SettingsViewModel @Inject constructor(
     fun onPassword(v: String) { _uiState.update { it.copy(password = v) }; autoSave() }
     fun onTotpSeed(v: String) { _uiState.update { it.copy(totpSeed = v.trim().uppercase()) }; autoSave() }
 
+    fun onLogDirectory(v: String) { _uiState.update { it.copy(logDirectory = v) }; autoSave() }
+
     fun onShowRunningNotifications(v: Boolean) {
         appPreferences.showRunningJobNotifications = v
         if (!v) jobNotificationManager.cancelAllRunningNotifications()
@@ -90,6 +93,7 @@ class SettingsViewModel @Inject constructor(
             credentialStore.username = username.trim()
             credentialStore.password = password
             credentialStore.totpSeed = totpSeed
+            appPreferences.logDirectory = logDirectory.trim()
         }
         _uiState.update { it.copy(connectionTest = ConnectionTestState.Idle) }
     }
@@ -135,6 +139,7 @@ class SettingsViewModel @Inject constructor(
                 hasKey = hasKey,
                 publicKeyText = if (hasKey) KeystoreIdentity.getOpenSshPublicKey(alias) else "",
                 showRunningNotifications = appPreferences.showRunningJobNotifications,
+                logDirectory = appPreferences.logDirectory,
             )
         }
     }

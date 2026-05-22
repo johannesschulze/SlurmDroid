@@ -13,6 +13,8 @@ data class FeatureRoute(
     val showInNav: Boolean = true,
     /** Optional URI pattern for notification/external deep links, e.g. "slurmdroid://jobs". */
     val deepLinkUri: String? = null,
+    /** Route of the nav-bar item that "owns" this screen, for correct nav-bar highlighting. */
+    val subtreeOf: String? = null,
 )
 
 interface ServerFeature {

@@ -10,20 +10,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.slurmdroid.core.Result
 import org.slurmdroid.features.slurm.data.SlurmRepository
-import org.slurmdroid.features.slurm.domain.JobDetail
 import javax.inject.Inject
 
 @HiltViewModel
-class JobDetailViewModel @Inject constructor(
+class LogViewViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: SlurmRepository,
 ) : ViewModel() {
 
-    private val jobId: String = checkNotNull(savedStateHandle["jobId"])
+    val fileName: String = checkNotNull(savedStateHandle["logFile"])
 
     sealed class UiState {
         object Loading : UiState()
-        data class Success(val detail: JobDetail, val logFiles: List<String> = emptyList()) : UiState()
+        data class Success(val content: String) : UiState()
         data class Error(val message: String) : UiState()
     }
 
@@ -37,15 +36,11 @@ class JobDetailViewModel @Inject constructor(
     private fun load() {
         viewModelScope.launch {
             _uiState.value = UiState.Loading
-            _uiState.value = when (val r = repository.fetchJobDetail(jobId)) {
-                is Result.Success -> {
-                    val logs = repository.findLogFiles(jobId)
-                    UiState.Success(r.data, logs)
-                }
+            _uiState.value = when (val r = repository.readLogFile(fileName)) {
+                is Result.Success -> UiState.Success(r.data)
                 is Result.AuthError -> UiState.Error("Authentication error")
                 is Result.ConnectionError -> UiState.Error("Connection lost: ${r.message}")
-                is Result.ParseError -> UiState.Error("Parse error: ${r.message}")
-                else -> UiState.Error("Failed to load job details")
+                else -> UiState.Error("Failed to read log file")
             }
         }
     }

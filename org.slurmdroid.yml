@@ -1,0 +1,40 @@
+Categories:
+  - System
+License: GPL-3.0-only
+AuthorName: Johannes Schulze
+SourceCode: https://github.com/johannesschulze/SlurmDroid
+IssueTracker: https://github.com/johannesschulze/SlurmDroid/issues
+
+Name: SlurmDroid
+Summary: Monitor and control Slurm HPC clusters via SSH
+Description: |-
+  SlurmDroid lets you monitor and control a Slurm workload manager cluster
+  directly from your Android device over SSH.
+
+  Features:
+  * View cluster partitions with availability and CPU load (colour-coded)
+  * List your running, pending, and completed jobs
+  * Submit new jobs and cancel running ones with swipe-to-cancel
+  * Job history with re-submit support
+  * Two-factor authentication (TOTP) via QR-code or manual seed entry
+  * SSH key authentication with secure on-device storage (Android Keystore)
+  * Background polling with push notifications for job state changes
+
+  All credentials (SSH key, password, TOTP seed) are stored exclusively in
+  the Android Keystore / EncryptedSharedPreferences — never in plain text.
+
+RepoType: git
+Repo: https://github.com/johannesschulze/SlurmDroid
+
+Builds:
+  - versionName: '0.1'
+    versionCode: 1
+    commit: v0.1
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: '0.1'
+CurrentVersionCode: 1

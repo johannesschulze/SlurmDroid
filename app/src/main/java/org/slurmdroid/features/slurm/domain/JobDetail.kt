@@ -19,4 +19,8 @@ data class JobDetail(
     // sstat fields (running jobs only)
     val avgCpu: String?,
     val nTasks: Int?,
+    /** Full sbatch command from local history, if this job was submitted through the app. */
+    val fullCommand: String? = null,
+    /** Non-empty when this is a Slurm array parent job — contains the individual array tasks. */
+    val arrayChildren: List<SacctJob> = emptyList(),
 )
