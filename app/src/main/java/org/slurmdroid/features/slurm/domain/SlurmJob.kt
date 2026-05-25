@@ -12,6 +12,8 @@ data class SlurmJob(
     /** For PENDING: reason code. For RUNNING: node list. */
     val reason: String,
     val partition: String,
+    /** Expected start time for PENDING jobs (ISO-8601 string from squeue %S), null if not yet scheduled. */
+    val startTime: String? = null,
     /** Elapsed time in seconds (0 if not started yet). */
     val timeUsedSeconds: Long,
     /** Time limit in seconds, null if UNLIMITED. */

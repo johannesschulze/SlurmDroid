@@ -39,6 +39,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,9 +51,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.slurmdroid.features.slurm.domain.SlurmJob
 import org.slurmdroid.features.slurm.ui.SubmitJobDialog
+import java.time.Duration
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -246,13 +252,50 @@ private fun JobCard(job: SlurmJob, onClick: () -> Unit = {}) {
                     progress = { job.progressFraction!! },
                     modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
                 )
-            } else if (job.isPending && job.reason.isNotBlank()) {
-                Text(
-                    "Waiting: ${job.reason}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            } else if (job.isPending) {
+                if (job.reason.isNotBlank()) {
+                    Text(
+                        "Waiting: ${job.reason}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (job.startTime != null) {
+                    val formattedStart = remember(job.startTime) { formatStartTime(job.startTime) }
+                    var remaining by remember(job.startTime) { mutableStateOf(remainingTime(job.startTime)) }
+                    LaunchedEffect(job.startTime) {
+                        while (true) {
+                            delay(1_000)
+                            remaining = remainingTime(job.startTime)
+                        }
+                    }
+                    Text(
+                        buildString {
+                            append("Starts: $formattedStart")
+                            if (remaining != null) append(" (in $remaining)")
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
 }
+
+private val isoParser = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+private val localeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
+
+private fun formatStartTime(raw: String): String = try {
+    localeFormatter.format(LocalDateTime.parse(raw, isoParser))
+} catch (_: Exception) { raw }
+
+private fun remainingTime(raw: String): String? = try {
+    val remaining = Duration.between(LocalDateTime.now(), LocalDateTime.parse(raw, isoParser))
+    if (remaining.isNegative) null else {
+        val h = remaining.toHours()
+        val m = remaining.toMinutesPart()
+        val s = remaining.toSecondsPart()
+        "%02d:%02d:%02d".format(h, m, s)
+    }
+} catch (_: Exception) { null }

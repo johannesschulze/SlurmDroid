@@ -93,7 +93,7 @@ class SlurmRepository @Inject constructor(
     private suspend fun fetchJobs() {
         val user = credentialStore.username
         val result = commandExecutor.execute(
-            "squeue -u $user -o \"%i|%j|%T|%M|%l|%R|%P\" --noheader"
+            "squeue -u $user -o \"%i|%j|%T|%M|%l|%R|%P|%S\" --noheader"
         )
         when (result) {
             is Result.Success -> {

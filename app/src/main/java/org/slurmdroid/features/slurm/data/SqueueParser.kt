@@ -6,9 +6,9 @@ import javax.inject.Inject
 
 /**
  * Parses output of:
- *   squeue -u <user> -o "%i|%j|%T|%M|%l|%R|%P" --noheader
+ *   squeue -u <user> -o "%i|%j|%T|%M|%l|%R|%P|%S" --noheader
  *
- * Fields: jobId | name | state | elapsed | timeLimit | reason | partition
+ * Fields: jobId | name | state | elapsed | timeLimit | reason | partition | startTime
  *
  * Time formats accepted: [D-]H:MM:SS, M:SS, UNLIMITED, 0:00.
  */
@@ -35,6 +35,8 @@ class SqueueParser @Inject constructor() {
         val timeLimit = cols[4].trim()
         val reason = cols[5].trim().let { if (it == "(null)") "" else it }
         val partition = cols[6].trim()
+        val rawStartTime = cols.getOrNull(7)?.trim()
+        val startTime = if (rawStartTime.isNullOrBlank() || rawStartTime == "N/A" || rawStartTime == "Unknown") null else rawStartTime
 
         return SlurmJob(
             jobId = jobId,
@@ -44,6 +46,7 @@ class SqueueParser @Inject constructor() {
             timeLimit = timeLimit,
             reason = reason,
             partition = partition,
+            startTime = startTime,
             timeUsedSeconds = parseTimeToSeconds(timeUsed) ?: 0L,
             timeLimitSeconds = parseTimeToSeconds(timeLimit),
         )
