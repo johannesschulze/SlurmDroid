@@ -9,6 +9,16 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Required on API 30+ to discover plugin services and optional UI activities -->
+    <queries>
+        <intent>
+            <action android:name="org.slurmdroid.plugin.FEATURE" />
+        </intent>
+        <intent>
+            <action android:name="org.slurmdroid.plugin.FEATURE_ACTIVITY" />
+        </intent>
+    </queries>
+
     <application
         android:name=".SlurmDroidApp"
         android:allowBackup="true"

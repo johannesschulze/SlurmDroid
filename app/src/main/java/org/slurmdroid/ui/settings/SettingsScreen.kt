@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -27,11 +28,15 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -73,7 +78,17 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Settings") }) },
+        topBar = {
+            val openDrawer = org.slurmdroid.ui.main.LocalOpenDrawer.current
+            TopAppBar(
+                title = { Text("Settings") },
+                navigationIcon = {
+                    IconButton(onClick = openDrawer) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu")
+                    }
+                },
+            )
+        },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -244,6 +259,87 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
 
             Spacer(Modifier.height(4.dp))
 
+            // ── nnU-Net ───────────────────────────────────────────────────────
+            SectionHeader("nnU-Net")
+            OutlinedTextField(
+                value = state.nnUNetBaseDir,
+                onValueChange = viewModel::onNnUNetBaseDir,
+                label = { Text("nnU-Net base directory") },
+                placeholder = { Text("/path/to/nnunet") },
+                supportingText = { Text("Sets raw, preprocessed, and results subdirectories automatically") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                "Individual overrides",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            OutlinedTextField(
+                value = state.nnUNetResultsDir,
+                onValueChange = viewModel::onNnUNetResultsDir,
+                label = { Text("nnUNet_results") },
+                placeholder = { Text("/path/to/nnUNet_results") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = state.nnUNetRawDir,
+                onValueChange = viewModel::onNnUNetRawDir,
+                label = { Text("nnUNet_raw") },
+                placeholder = { Text("/path/to/nnUNet_raw") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = state.nnUNetPreprocessedDir,
+                onValueChange = viewModel::onNnUNetPreprocessedDir,
+                label = { Text("nnUNet_preprocessed") },
+                placeholder = { Text("/path/to/nnUNet_preprocessed") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            // ── External Plugins ──────────────────────────────────────────────
+            if (state.pluginStates.isNotEmpty()) {
+                state.pluginStates.forEach { pluginState ->
+                    Spacer(Modifier.height(4.dp))
+                    SectionHeader("Plugin: ${pluginState.displayName}")
+                    pluginState.settings.forEach { setting ->
+                        val value = pluginState.values[setting.key] ?: setting.defaultText
+                        when (setting.type) {
+                            "text" -> OutlinedTextField(
+                                value = value,
+                                onValueChange = {
+                                    viewModel.onPluginSetting(pluginState.pluginId, setting.key, it)
+                                },
+                                label = { Text(setting.label) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            "toggle" -> PluginToggleSetting(
+                                label = setting.label,
+                                checked = value.toBooleanStrictOrNull() ?: setting.defaultBool,
+                                onCheckedChange = {
+                                    viewModel.onPluginSetting(pluginState.pluginId, setting.key, it.toString())
+                                },
+                            )
+                            "dropdown" -> PluginDropdownSetting(
+                                label = setting.label,
+                                options = setting.options,
+                                selected = value.ifBlank { setting.options.firstOrNull() ?: "" },
+                                onSelected = {
+                                    viewModel.onPluginSetting(pluginState.pluginId, setting.key, it)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
             // ── Notifications ─────────────────────────────────────────────────
             SectionHeader("Notifications")
             Row(
@@ -276,6 +372,56 @@ private fun SectionHeader(title: String) {
         Text(title, style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary)
         HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
+    }
+}
+
+@Composable
+private fun PluginToggleSetting(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.padding(start = 16.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PluginDropdownSetting(
+    label: String,
+    options: List<String>,
+    selected: String,
+    onSelected: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = selected,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = { onSelected(option); expanded = false },
+                )
+            }
+        }
     }
 }
 
