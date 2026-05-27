@@ -1,4 +1,5 @@
 package org.slurmdroid.plugin.api;
+import org.slurmdroid.plugin.api.ICommandBridge;
 import org.slurmdroid.plugin.api.PluginSettingParcel;
 
 /**
@@ -17,12 +18,25 @@ interface IPluginService {
     String getDisplayName();
 
     /**
-     * Shell commands to execute on the cluster during each poll cycle.
-     * SlurmDroid executes them via SSH and passes results back via onResult().
+     * Called once per poll cycle. Use bridge.execute() to run SSH commands in any
+     * order, using earlier results to decide later commands — equivalent to
+     * ServerFeature.poll(executor). Runs on a binder thread; must not block the
+     * main thread.
+     *
+     * Implement this for plugins that need multi-round SSH (e.g. discover datasets,
+     * then check each one). Leave the body empty and implement getCommands/onResult
+     * instead for simple single-round plugins.
+     */
+    void poll(ICommandBridge bridge);
+
+    /**
+     * Simple alternative to poll(): return a fixed list of commands and receive
+     * results via onResult(). Use when commands do not depend on each other.
+     * Ignored if poll() does meaningful work.
      */
     List<String> getCommands();
 
-    /** Called once per command after SSH execution. output is trimmed stdout. */
+    /** Called once per command returned by getCommands() after SSH execution. */
     void onResult(String command, String output);
 
     /** Settings the plugin wants SlurmDroid to render and persist. */
@@ -30,7 +44,7 @@ interface IPluginService {
 
     /**
      * Called when stored settings are delivered to the plugin (on bind and on change).
-     * keys are setting keys; values are their current string representations.
+     * Keys are setting keys; values are their current string representations.
      */
     void onSettingsChanged(in Bundle values);
 }

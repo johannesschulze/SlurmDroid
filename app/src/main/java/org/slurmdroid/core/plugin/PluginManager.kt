@@ -17,9 +17,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.slurmdroid.core.AppPreferences
 import org.slurmdroid.core.Result
 import org.slurmdroid.core.ssh.CommandExecutor
+import org.slurmdroid.plugin.api.ICommandBridge
 import org.slurmdroid.plugin.api.IPluginService
 import org.slurmdroid.plugin.api.PluginSettingParcel
 import javax.inject.Inject
@@ -120,18 +122,18 @@ class PluginManager @Inject constructor(
         context.bindService(intent, conn, Context.BIND_AUTO_CREATE)
     }
 
-    /** Executes each plugin's commands via [executor] and delivers results back to the plugin. */
+    /** Calls poll() on each bound plugin, providing an ICommandBridge backed by [executor]. */
     suspend fun pollAll(executor: CommandExecutor) {
         _plugins.value.forEach { plugin ->
             runCatching {
-                val commands = plugin.service.commands ?: return@runCatching
-                commands.forEach { command ->
-                    val output = when (val result = executor.execute(command)) {
-                        is Result.Success -> result.data
-                        else -> ""
-                    }
-                    plugin.service.onResult(command, output)
+                val bridge = object : ICommandBridge.Stub() {
+                    override fun execute(command: String): String =
+                        when (val result = runBlocking { executor.execute(command) }) {
+                            is Result.Success -> result.data
+                            else -> ""
+                        }
                 }
+                plugin.service.poll(bridge)
             }
         }
     }

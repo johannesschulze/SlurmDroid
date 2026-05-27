@@ -39,6 +39,7 @@ abstract class SlurmDroidPluginService : Service() {
     private val binder = object : IPluginService.Stub() {
         override fun getId(): String = plugin.id
         override fun getDisplayName(): String = plugin.displayName
+        override fun poll(bridge: ICommandBridge) = plugin.poll { command -> bridge.execute(command) }
         override fun getCommands(): List<String> = plugin.getCommands()
         override fun onResult(command: String, output: String) = plugin.onResult(command, output)
         override fun getSettings(): List<PluginSettingParcel> = plugin.getSettings().map { it.toParcel() }
