@@ -24,8 +24,11 @@ interface ServerFeature {
 
     fun provideRoutes(): List<FeatureRoute>
 
+    /** The route the navigation rail navigates to when this feature is selected. */
+    val homeRoute: String get() = provideRoutes().first { it.showInNav }.route
+
     @Composable
-    fun DashboardCard()
+    fun DashboardCard() {}
 
     suspend fun poll(executor: CommandExecutor)
 
