@@ -1,8 +1,10 @@
 package org.slurmdroid.core.plugin
 
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
@@ -154,6 +156,40 @@ class PluginManager @Inject constructor(
             bundle.putString(s.key, appPreferences.getPluginSetting(pluginId, s.key, s.defaultText))
         }
         return bundle
+    }
+
+    /**
+     * Registers a receiver for package install/replace/remove events so plugins are
+     * automatically re-discovered without requiring an app restart.
+     * Call once from Application.onCreate().
+     */
+    fun registerPackageReceiver() {
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addDataScheme("package")
+        }
+        context.registerReceiver(packageReceiver, filter)
+    }
+
+    private val packageReceiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context, intent: Intent) {
+            val pkg = intent.data?.schemeSpecificPart ?: return
+            when (intent.action) {
+                Intent.ACTION_PACKAGE_REMOVED -> {
+                    // Unbind and forget — onServiceDisconnected may already have fired.
+                    connections.remove(pkg)?.let { context.unbindService(it) }
+                    _plugins.update { list -> list.filter { it.packageName != pkg } }
+                }
+                Intent.ACTION_PACKAGE_ADDED, Intent.ACTION_PACKAGE_REPLACED -> {
+                    // Drop stale connection so bindPlugin doesn't skip this package.
+                    connections.remove(pkg)?.let { runCatching { context.unbindService(it) } }
+                    _plugins.update { list -> list.filter { it.packageName != pkg } }
+                    discoverAndBind()
+                }
+            }
+        }
     }
 
     companion object {

@@ -35,16 +35,36 @@ class NnUNetPlugin : ISlurmDroidPlugin {
     val resolvedResultsDir: StateFlow<String?> = _resolvedResultsDir.asStateFlow()
 
     override fun getSettings(): List<PluginSetting> = listOf(
-        PluginSetting.TextInput(key = "nnunet_results_dir", label = "nnUNet_results directory"),
-        PluginSetting.TextInput(key = "nnunet_raw_dir", label = "nnUNet_raw directory"),
-        PluginSetting.TextInput(key = "nnunet_preprocessed_dir", label = "nnUNet_preprocessed directory"),
+        PluginSetting.TextInput(
+            key = "nnunet_base_dir",
+            label = "nnU-Net base directory",
+        ),
+        PluginSetting.TextInput(
+            key = "nnunet_results_dir",
+            label = "nnUNet_results (optional override)",
+        ),
+        PluginSetting.TextInput(
+            key = "nnunet_raw_dir",
+            label = "nnUNet_raw (optional override)",
+        ),
+        PluginSetting.TextInput(
+            key = "nnunet_preprocessed_dir",
+            label = "nnUNet_preprocessed (optional override)",
+        ),
     )
 
     override fun onSettingsChanged(values: Map<String, String>) {
-        resultsDir = values["nnunet_results_dir"] ?: ""
-        rawDir = values["nnunet_raw_dir"] ?: ""
-        preprocessedDir = values["nnunet_preprocessed_dir"] ?: ""
+        val base = values["nnunet_base_dir"]?.trim() ?: ""
+        resultsDir = values["nnunet_results_dir"]?.trim()?.ifBlank { null }
+            ?: subDir(base, "results")
+        rawDir = values["nnunet_raw_dir"]?.trim()?.ifBlank { null }
+            ?: subDir(base, "raw")
+        preprocessedDir = values["nnunet_preprocessed_dir"]?.trim()?.ifBlank { null }
+            ?: subDir(base, "preprocessed")
     }
+
+    private fun subDir(base: String, name: String) =
+        if (base.isNotBlank()) "${base.trimEnd('/')}/$name" else ""
 
     override fun poll(executor: (String) -> String) {
         val resolvedResults = resolveDir(resultsDir, "\${nnUNet_results:-}", executor)

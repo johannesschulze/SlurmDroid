@@ -16,6 +16,7 @@ class SlurmDroidApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         pluginManager.discoverAndBind()
+        pluginManager.registerPackageReceiver()
     }
 
     override val workManagerConfiguration: Configuration
