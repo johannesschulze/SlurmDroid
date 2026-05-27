@@ -30,6 +30,7 @@ class SlurmRepository @Inject constructor(
     private val sinfoTIdleParser: SinfoTIdleParser,
     private val squeueParser: SqueueParser,
     private val sacctParser: SacctParser,
+    private val scontrolParser: ScontrolParser,
     private val credentialStore: SshCredentialStore,
     private val database: AppDatabase,
     private val appPreferences: AppPreferences,
@@ -221,6 +222,10 @@ class SlurmRepository @Inject constructor(
             ).let { if (it is Result.Success) it.data else null }
         }
         val (avgCpu, maxRss, nTasks) = parseSstatFirstLine(sstatOut)
+
+        val sc = commandExecutor.execute("scontrol show job ${job.jobId}")
+            .let { if (it is Result.Success) scontrolParser.parse(it.data) else ScontrolJobInfo() }
+
         return Result.Success(
             JobDetail(
                 jobId = job.jobId,
@@ -229,16 +234,17 @@ class SlurmRepository @Inject constructor(
                 partition = job.partition,
                 elapsed = job.timeUsed,
                 timeLimit = job.timeLimit,
-                nodeList = if (job.isRunning) job.reason else "",
-                startTime = null,
-                endTime = null,
-                nCpus = null,
-                nNodes = null,
-                requestedMemory = null,
+                nodeList = sc.nodeList ?: if (job.isRunning) job.reason else "",
+                startTime = sc.startTime,
+                endTime = sc.endTime,
+                nCpus = sc.numCpus,
+                nNodes = sc.numNodes,
+                requestedMemory = sc.requestedMemory,
                 maxRss = maxRss,
                 exitCode = null,
                 avgCpu = avgCpu,
                 nTasks = nTasks,
+                submitLine = sc.submitLine,
             )
         )
     }
@@ -268,6 +274,7 @@ class SlurmRepository @Inject constructor(
         val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT)
         fun ts(s: String) = s.trim().takeIf { it.isNotBlank() && it != "None" && it != "Unknown" }
             ?.let { runCatching { fmt.parse(it)?.time }.getOrNull() }
+
         return Result.Success(
             JobDetail(
                 jobId = p[0].trim(),

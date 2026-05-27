@@ -21,6 +21,8 @@ data class JobDetail(
     val nTasks: Int?,
     /** Full sbatch command from local history, if this job was submitted through the app. */
     val fullCommand: String? = null,
+    /** Submission line from `scontrol show job` — available for any job, not just app-submitted ones. */
+    val submitLine: String? = null,
     /** Non-empty when this is a Slurm array parent job — contains the individual array tasks. */
     val arrayChildren: List<SacctJob> = emptyList(),
 )
