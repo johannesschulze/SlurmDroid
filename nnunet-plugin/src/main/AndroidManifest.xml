@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:name=".NnUNetPluginApp"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.NnUNetPlugin">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="org.slurmdroid.plugin.FEATURE_ACTIVITY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".NnUNetPluginService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="org.slurmdroid.plugin.FEATURE" />
+            </intent-filter>
+        </service>
+
+    </application>
+
+</manifest>
