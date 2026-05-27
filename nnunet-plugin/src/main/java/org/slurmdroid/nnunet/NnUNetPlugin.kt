@@ -34,6 +34,9 @@ class NnUNetPlugin : ISlurmDroidPlugin {
     private val _resolvedResultsDir = MutableStateFlow<String?>(null)
     val resolvedResultsDir: StateFlow<String?> = _resolvedResultsDir.asStateFlow()
 
+    private val _lastPollTime = MutableStateFlow<Long?>(null)
+    val lastPollTime: StateFlow<Long?> = _lastPollTime.asStateFlow()
+
     override fun getSettings(): List<PluginSetting> = listOf(
         PluginSetting.TextInput(
             key = "nnunet_base_dir",
@@ -67,6 +70,7 @@ class NnUNetPlugin : ISlurmDroidPlugin {
         if (base.isNotBlank()) "${base.trimEnd('/')}/$name" else ""
 
     override fun poll(executor: (String) -> String) {
+        _lastPollTime.value = System.currentTimeMillis()
         val resolvedResults = resolveDir(resultsDir, "\${nnUNet_results:-}", executor)
         val resolvedRaw = resolveDir(rawDir, "\${nnUNet_raw:-}", executor)
         val resolvedPrep = resolveDir(preprocessedDir, "\${nnUNet_preprocessed:-}", executor)

@@ -208,7 +208,10 @@ fun AppNavigation(viewModel: AppViewModel = hiltViewModel()) {
                             ?: emptyList(),
                     ) { route.content() }
                 }
-                composable("settings") { SettingsScreen() }
+                composable(
+                    "settings",
+                    deepLinks = listOf(navDeepLink { uriPattern = "slurmdroid://settings" }),
+                ) { SettingsScreen() }
             }
         }
     }
