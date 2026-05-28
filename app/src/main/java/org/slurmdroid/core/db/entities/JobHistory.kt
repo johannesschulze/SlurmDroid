@@ -12,4 +12,5 @@ data class JobHistory(
     val partition: String,
     val lastKnownStatus: String,
     val slurmJobId: String?,
+    val scontrolRaw: String? = null,
 )

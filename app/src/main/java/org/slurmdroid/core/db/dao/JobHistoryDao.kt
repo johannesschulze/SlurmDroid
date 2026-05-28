@@ -19,4 +19,13 @@ interface JobHistoryDao {
 
     @Query("SELECT fullCommand FROM job_history WHERE slurmJobId = :slurmJobId LIMIT 1")
     suspend fun getCommandByJobId(slurmJobId: String): String?
+
+    @Query("SELECT slurmJobId FROM job_history WHERE slurmJobId IS NOT NULL")
+    suspend fun getAllSlurmJobIds(): List<String>
+
+    @Query("SELECT slurmJobId FROM job_history WHERE slurmJobId IS NOT NULL AND scontrolRaw IS NOT NULL")
+    suspend fun getSlurmJobIdsWithScontrolRaw(): List<String>
+
+    @Query("UPDATE job_history SET scontrolRaw = :raw WHERE slurmJobId = :slurmJobId")
+    suspend fun updateScontrolRaw(slurmJobId: String, raw: String)
 }

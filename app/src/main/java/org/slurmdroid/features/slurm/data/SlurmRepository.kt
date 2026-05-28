@@ -104,6 +104,7 @@ class SlurmRepository @Inject constructor(
                         _jobs.value = parsed.data
                         _pollError.value = null
                         updateHistoryStatuses(parsed.data)
+                        storeScontrolForNewJobs(parsed.data)
                     }
                     else -> _pollError.value = "Failed to parse job list"
                 }
@@ -135,6 +136,46 @@ class SlurmRepository @Inject constructor(
         val dao = database.jobHistoryDao()
         activeJobs.forEach { job -> dao.updateStatus(job.jobId, job.state) }
     }
+
+    private suspend fun storeScontrolForNewJobs(activeJobs: List<SlurmJob>) {
+        val dao = database.jobHistoryDao()
+        val haveRaw = dao.getSlurmJobIdsWithScontrolRaw().toSet()
+        val inDb = dao.getAllSlurmJobIds().toSet()
+
+        // Deduplicate by base ID so array tasks (4840886_2) map to their parent (4840886)
+        val baseIds = activeJobs.map { it.baseJobId() }.toSet()
+
+        for (baseId in baseIds) {
+            if (baseId in haveRaw) continue
+
+            val raw = (commandExecutor.execute("scontrol show job $baseId") as? Result.Success)
+                ?.data?.takeIf { it.isNotBlank() } ?: continue
+
+            if (baseId in inDb) {
+                dao.updateScontrolRaw(baseId, raw)
+            } else {
+                val submitLine = scontrolParser.parse(raw).submitLine
+                val rep = activeJobs.first { it.baseJobId() == baseId }
+                dao.insert(
+                    JobHistory(
+                        timestamp = System.currentTimeMillis(),
+                        jobName = rep.name,
+                        fullCommand = submitLine ?: "",
+                        partition = rep.partition,
+                        lastKnownStatus = rep.state,
+                        slurmJobId = baseId,
+                        scontrolRaw = raw,
+                    )
+                )
+            }
+        }
+    }
+
+    /** Returns the Slurm base job ID, stripping array task suffixes (e.g. "123_2" → "123"). */
+    private fun SlurmJob.baseJobId() =
+        if ('_' in jobId && jobId.substringAfterLast('_').toIntOrNull() != null)
+            jobId.substringBefore('_')
+        else jobId
 
     // ── job detail ────────────────────────────────────────────────────────────
 

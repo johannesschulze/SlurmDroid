@@ -166,6 +166,7 @@ fun HistoryScreen(
                                     onResubmit = {
                                         viewModel.refreshSlurmScripts()
                                         submitInitialState = item.job.fullCommand
+                                            ?.takeIf { it.isNotBlank() }
                                             ?.let { JobFormState.fromSbatchCommand(it) }
                                             ?: viewModel.lastFormState()
                                     },
@@ -177,6 +178,7 @@ fun HistoryScreen(
                                     onResubmit = {
                                         viewModel.refreshSlurmScripts()
                                         submitInitialState = item.fullCommand
+                                            ?.takeIf { it.isNotBlank() }
                                             ?.let { JobFormState.fromSbatchCommand(it) }
                                             ?: viewModel.lastFormState()
                                     },
@@ -226,7 +228,7 @@ private fun HistoryCard(job: SacctJob, onClick: () -> Unit = {}, onResubmit: () 
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (job.fullCommand != null) {
+            if (!job.fullCommand.isNullOrBlank()) {
                 Spacer(Modifier.height(4.dp))
                 OutlinedButton(onClick = onResubmit, modifier = Modifier.align(Alignment.End)) {
                     Icon(Icons.Default.Refresh, contentDescription = null,
