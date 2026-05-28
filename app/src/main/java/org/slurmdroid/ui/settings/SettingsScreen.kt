@@ -259,50 +259,6 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
 
             Spacer(Modifier.height(4.dp))
 
-            // ── nnU-Net ───────────────────────────────────────────────────────
-            SectionHeader("nnU-Net")
-            OutlinedTextField(
-                value = state.nnUNetBaseDir,
-                onValueChange = viewModel::onNnUNetBaseDir,
-                label = { Text("nnU-Net base directory") },
-                placeholder = { Text("/path/to/nnunet") },
-                supportingText = { Text("Sets raw, preprocessed, and results subdirectories automatically") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                "Individual overrides",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            OutlinedTextField(
-                value = state.nnUNetResultsDir,
-                onValueChange = viewModel::onNnUNetResultsDir,
-                label = { Text("nnUNet_results") },
-                placeholder = { Text("/path/to/nnUNet_results") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.nnUNetRawDir,
-                onValueChange = viewModel::onNnUNetRawDir,
-                label = { Text("nnUNet_raw") },
-                placeholder = { Text("/path/to/nnUNet_raw") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.nnUNetPreprocessedDir,
-                onValueChange = viewModel::onNnUNetPreprocessedDir,
-                label = { Text("nnUNet_preprocessed") },
-                placeholder = { Text("/path/to/nnUNet_preprocessed") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(4.dp))
-
             // ── External Plugins ──────────────────────────────────────────────
             if (state.pluginStates.isNotEmpty()) {
                 state.pluginStates.forEach { pluginState ->

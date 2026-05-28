@@ -40,10 +40,6 @@ data class SettingsUiState(
     val connectionTest: ConnectionTestState = ConnectionTestState.Idle,
     val showRunningNotifications: Boolean = true,
     val logDirectory: String = "slurm_logs",
-    val nnUNetBaseDir: String = "",
-    val nnUNetResultsDir: String = "",
-    val nnUNetRawDir: String = "",
-    val nnUNetPreprocessedDir: String = "",
     val pluginStates: List<PluginSettingsState> = emptyList(),
 )
 
@@ -96,32 +92,6 @@ class SettingsViewModel @Inject constructor(
 
     fun onLogDirectory(v: String) { _uiState.update { it.copy(logDirectory = v) }; autoSave() }
 
-    fun onNnUNetBaseDir(v: String) {
-        _uiState.update { state ->
-            val oldBase = state.nnUNetBaseDir
-            state.copy(
-                nnUNetBaseDir = v,
-                nnUNetResultsDir = autoFill(state.nnUNetResultsDir, oldBase, v, "nnUNet_results"),
-                nnUNetRawDir = autoFill(state.nnUNetRawDir, oldBase, v, "nnUNet_raw"),
-                nnUNetPreprocessedDir = autoFill(state.nnUNetPreprocessedDir, oldBase, v, "nnUNet_preprocessed"),
-            )
-        }
-        autoSave()
-    }
-
-    fun onNnUNetResultsDir(v: String) { _uiState.update { it.copy(nnUNetResultsDir = v) }; autoSave() }
-    fun onNnUNetRawDir(v: String) { _uiState.update { it.copy(nnUNetRawDir = v) }; autoSave() }
-    fun onNnUNetPreprocessedDir(v: String) { _uiState.update { it.copy(nnUNetPreprocessedDir = v) }; autoSave() }
-
-    /** Updates a subdir if it is blank or still equals the auto-computed value from the old base. */
-    private fun autoFill(current: String, oldBase: String, newBase: String, sub: String): String {
-        val wasAuto = current.isBlank() || current == nnUNetSubPath(oldBase, sub)
-        return if (wasAuto) nnUNetSubPath(newBase, sub) else current
-    }
-
-    private fun nnUNetSubPath(base: String, sub: String): String =
-        if (base.isBlank()) "" else "${base.trimEnd('/')}/$sub"
-
     fun onShowRunningNotifications(v: Boolean) {
         appPreferences.showRunningJobNotifications = v
         if (!v) jobNotificationManager.cancelAllRunningNotifications()
@@ -172,10 +142,6 @@ class SettingsViewModel @Inject constructor(
             credentialStore.password = password
             credentialStore.totpSeed = totpSeed
             appPreferences.logDirectory = logDirectory.trim()
-            appPreferences.nnUNetBaseDir = nnUNetBaseDir.trim()
-            appPreferences.nnUNetResultsDir = nnUNetResultsDir.trim()
-            appPreferences.nnUNetRawDir = nnUNetRawDir.trim()
-            appPreferences.nnUNetPreprocessedDir = nnUNetPreprocessedDir.trim()
         }
         _uiState.update { it.copy(connectionTest = ConnectionTestState.Idle) }
     }
@@ -222,10 +188,6 @@ class SettingsViewModel @Inject constructor(
                 publicKeyText = if (hasKey) KeystoreIdentity.getOpenSshPublicKey(alias) else "",
                 showRunningNotifications = appPreferences.showRunningJobNotifications,
                 logDirectory = appPreferences.logDirectory,
-                nnUNetBaseDir = appPreferences.nnUNetBaseDir,
-                nnUNetResultsDir = appPreferences.nnUNetResultsDir,
-                nnUNetRawDir = appPreferences.nnUNetRawDir,
-                nnUNetPreprocessedDir = appPreferences.nnUNetPreprocessedDir,
             )
         }
     }
