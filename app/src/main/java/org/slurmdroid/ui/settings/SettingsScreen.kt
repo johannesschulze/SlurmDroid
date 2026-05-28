@@ -308,33 +308,46 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 state.pluginStates.forEach { pluginState ->
                     Spacer(Modifier.height(4.dp))
                     SectionHeader("Plugin: ${pluginState.displayName}")
-                    pluginState.settings.forEach { setting ->
-                        val value = pluginState.values[setting.key] ?: setting.defaultText
-                        when (setting.type) {
-                            "text" -> OutlinedTextField(
-                                value = value,
-                                onValueChange = {
-                                    viewModel.onPluginSetting(pluginState.pluginId, setting.key, it)
-                                },
-                                label = { Text(setting.label) },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            "toggle" -> PluginToggleSetting(
-                                label = setting.label,
-                                checked = value.toBooleanStrictOrNull() ?: setting.defaultBool,
-                                onCheckedChange = {
-                                    viewModel.onPluginSetting(pluginState.pluginId, setting.key, it.toString())
-                                },
-                            )
-                            "dropdown" -> PluginDropdownSetting(
-                                label = setting.label,
-                                options = setting.options,
-                                selected = value.ifBlank { setting.options.firstOrNull() ?: "" },
-                                onSelected = {
-                                    viewModel.onPluginSetting(pluginState.pluginId, setting.key, it)
-                                },
-                            )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Enable plugin", style = MaterialTheme.typography.bodyMedium)
+                        Switch(
+                            checked = pluginState.isEnabled,
+                            onCheckedChange = { viewModel.onPluginEnabled(pluginState.pluginId, it) },
+                        )
+                    }
+                    if (pluginState.isEnabled) {
+                        pluginState.settings.forEach { setting ->
+                            val value = pluginState.values[setting.key] ?: setting.defaultText
+                            when (setting.type) {
+                                "text" -> OutlinedTextField(
+                                    value = value,
+                                    onValueChange = {
+                                        viewModel.onPluginSetting(pluginState.pluginId, setting.key, it)
+                                    },
+                                    label = { Text(setting.label) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                "toggle" -> PluginToggleSetting(
+                                    label = setting.label,
+                                    checked = value.toBooleanStrictOrNull() ?: setting.defaultBool,
+                                    onCheckedChange = {
+                                        viewModel.onPluginSetting(pluginState.pluginId, setting.key, it.toString())
+                                    },
+                                )
+                                "dropdown" -> PluginDropdownSetting(
+                                    label = setting.label,
+                                    options = setting.options,
+                                    selected = value.ifBlank { setting.options.firstOrNull() ?: "" },
+                                    onSelected = {
+                                        viewModel.onPluginSetting(pluginState.pluginId, setting.key, it)
+                                    },
+                                )
+                            }
                         }
                     }
                 }

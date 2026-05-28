@@ -46,6 +46,13 @@ class AppPreferences @Inject constructor(
         get() = prefs.getString(KEY_NNUNET_PREPROCESSED, "") ?: ""
         set(v) { prefs.edit().putString(KEY_NNUNET_PREPROCESSED, v).apply() }
 
+    fun isPluginEnabled(pluginId: String): Boolean =
+        prefs.getBoolean("plugin.$pluginId.enabled", false)
+
+    fun setPluginEnabled(pluginId: String, enabled: Boolean) {
+        prefs.edit().putBoolean("plugin.$pluginId.enabled", enabled).apply()
+    }
+
     fun getPluginSetting(pluginId: String, key: String, default: String): String =
         prefs.getString("plugin.$pluginId.$key", default) ?: default
 

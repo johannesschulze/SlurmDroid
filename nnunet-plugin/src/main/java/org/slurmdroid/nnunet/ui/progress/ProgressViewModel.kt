@@ -21,8 +21,10 @@ class ProgressViewModel(
         }
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
+            SharingStarted.Eagerly,
             plugin.workflows.value[datasetName]?.trainingConfigs
                 ?.find { it.configName == configName }?.folds,
         )
+    val lastPollTime = plugin.lastPollTime
+    val lastPollError = plugin.lastPollError
 }

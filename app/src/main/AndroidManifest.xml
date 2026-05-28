@@ -51,6 +51,14 @@
             android:foregroundServiceType="dataSync"
             android:exported="false" />
 
+        <receiver
+            android:name=".service.PollRequestReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="org.slurmdroid.action.REQUEST_POLL" />
+            </intent-filter>
+        </receiver>
+
         <!-- Disable default WorkManager init so Hilt's Configuration.Provider takes over -->
         <provider
             android:name="androidx.startup.InitializationProvider"

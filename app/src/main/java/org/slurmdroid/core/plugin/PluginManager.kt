@@ -42,6 +42,7 @@ class PluginManager @Inject constructor(
         val settings: List<PluginSettingParcel>,
         /** Non-null when the plugin APK declares an Activity with the FEATURE_ACTIVITY intent filter. */
         val activityComponent: ComponentName?,
+        val isEnabled: Boolean,
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -109,6 +110,7 @@ class PluginManager @Inject constructor(
                                 service = service,
                                 settings = settings,
                                 activityComponent = activityComponent,
+                                isEnabled = appPreferences.isPluginEnabled(id),
                             )
                         }
                     }
@@ -124,9 +126,9 @@ class PluginManager @Inject constructor(
         context.bindService(intent, conn, Context.BIND_AUTO_CREATE)
     }
 
-    /** Calls poll() on each bound plugin, providing an ICommandBridge backed by [executor]. */
+    /** Calls poll() on each bound, enabled plugin, providing an ICommandBridge backed by [executor]. */
     suspend fun pollAll(executor: CommandExecutor) {
-        _plugins.value.forEach { plugin ->
+        _plugins.value.filter { appPreferences.isPluginEnabled(it.id) }.forEach { plugin ->
             runCatching {
                 val bridge = object : ICommandBridge.Stub() {
                     override fun execute(command: String): String =
@@ -137,6 +139,13 @@ class PluginManager @Inject constructor(
                 }
                 plugin.service.poll(bridge)
             }
+        }
+    }
+
+    fun setPluginEnabled(pluginId: String, enabled: Boolean) {
+        appPreferences.setPluginEnabled(pluginId, enabled)
+        _plugins.update { list ->
+            list.map { if (it.id == pluginId) it.copy(isEnabled = enabled) else it }
         }
     }
 
@@ -170,7 +179,11 @@ class PluginManager @Inject constructor(
             addAction(Intent.ACTION_PACKAGE_REMOVED)
             addDataScheme("package")
         }
-        context.registerReceiver(packageReceiver, filter)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(packageReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            context.registerReceiver(packageReceiver, filter)
+        }
     }
 
     private val packageReceiver = object : BroadcastReceiver() {

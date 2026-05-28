@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -16,6 +15,7 @@ import org.slurmdroid.nnunet.ui.datasets.DatasetListScreen
 import org.slurmdroid.nnunet.ui.detail.DatasetDetailScreen
 import org.slurmdroid.nnunet.ui.progress.ProgressScreen
 import org.slurmdroid.plugin.api.ui.PluginDrawerScaffold
+import org.slurmdroid.plugin.api.ui.PluginTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val plugin = (application as NnUNetPluginApp).plugin
         setContent {
-            MaterialTheme {
+            PluginTheme {
                 val navController = rememberNavController()
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = backStackEntry?.destination?.route

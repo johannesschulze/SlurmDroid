@@ -41,6 +41,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -165,14 +166,27 @@ fun AppNavigation(viewModel: AppViewModel = hiltViewModel()) {
                         NavigationDrawerItem(
                             icon = { Icon(Icons.Default.Extension, contentDescription = null) },
                             label = { Text(plugin.displayName) },
+                            badge = if (!plugin.isEnabled) {
+                                {
+                                    Text(
+                                        "disabled",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            } else null,
                             selected = false,
                             onClick = {
-                                scope.launch { drawerState.close() }
-                                context.startActivity(
-                                    Intent().apply { component = plugin.activityComponent }
-                                )
+                                if (plugin.isEnabled) {
+                                    scope.launch { drawerState.close() }
+                                    context.startActivity(
+                                        Intent().apply { component = plugin.activityComponent }
+                                    )
+                                }
                             },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                            modifier = Modifier
+                                .padding(NavigationDrawerItemDefaults.ItemPadding)
+                                .alpha(if (plugin.isEnabled) 1f else 0.45f),
                         )
                     }
                 }

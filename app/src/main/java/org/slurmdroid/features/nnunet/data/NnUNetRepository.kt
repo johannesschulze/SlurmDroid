@@ -111,12 +111,13 @@ class NnUNetRepository @Inject constructor(
             )
         }
 
-        // Phase 2: read all training logs in one command
+        // Phase 2: read relevant lines from training logs (grep avoids transferring huge files)
         val logCmd = parsed.configPaths.joinToString("; ") { configPath ->
             val configName = configPath.substringAfterLast('/')
             "echo '---CONFIG $configName---'; " +
                 (0..4).joinToString("; ") { fold ->
-                    "echo '---FOLD $fold---'; cat \"$configPath/fold_$fold/training_log_\"*.txt 2>/dev/null"
+                    "echo '---FOLD $fold---'; grep -hE '(Epoch [0-9]|Epoch time:)' " +
+                        "\"$configPath/fold_$fold/training_log_\"*.txt 2>/dev/null"
                 }
         }
         val logResult = commandExecutor.execute(logCmd)

@@ -14,5 +14,7 @@ class DatasetDetailViewModel(
 ) : ViewModel() {
     val workflow = plugin.workflows
         .map { it[datasetName] }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), plugin.workflows.value[datasetName])
+        .stateIn(viewModelScope, SharingStarted.Eagerly, plugin.workflows.value[datasetName])
+    val lastPollTime = plugin.lastPollTime
+    val lastPollError = plugin.lastPollError
 }

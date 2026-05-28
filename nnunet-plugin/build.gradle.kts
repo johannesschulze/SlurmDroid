@@ -45,6 +45,17 @@ kotlin {
     jvmToolchain(11)
 }
 
+tasks.register("reinstallAndRestart") {
+    dependsOn("installDebug")
+    doLast {
+        ProcessBuilder("adb", "shell", "am", "force-stop", "org.slurmdroid")
+            .inheritIO().start().waitFor()
+        Thread.sleep(500)
+        ProcessBuilder("adb", "shell", "am", "start", "-n", "org.slurmdroid/.ui.main.MainActivity")
+            .inheritIO().start().waitFor()
+    }
+}
+
 dependencies {
     implementation(project(":plugin-api"))
 

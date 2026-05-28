@@ -24,6 +24,7 @@ import javax.inject.Inject
 data class PluginSettingsState(
     val pluginId: String,
     val displayName: String,
+    val isEnabled: Boolean,
     val settings: List<PluginSettingParcel>,
     val values: Map<String, String>,
 )
@@ -73,6 +74,7 @@ class SettingsViewModel @Inject constructor(
                     PluginSettingsState(
                         pluginId = plugin.id,
                         displayName = plugin.displayName,
+                        isEnabled = appPreferences.isPluginEnabled(plugin.id),
                         settings = plugin.settings,
                         values = plugin.settings.associate { s ->
                             s.key to appPreferences.getPluginSetting(plugin.id, s.key, s.defaultText)
@@ -99,9 +101,9 @@ class SettingsViewModel @Inject constructor(
             val oldBase = state.nnUNetBaseDir
             state.copy(
                 nnUNetBaseDir = v,
-                nnUNetResultsDir = autoFill(state.nnUNetResultsDir, oldBase, v, "results"),
-                nnUNetRawDir = autoFill(state.nnUNetRawDir, oldBase, v, "raw"),
-                nnUNetPreprocessedDir = autoFill(state.nnUNetPreprocessedDir, oldBase, v, "preprocessed"),
+                nnUNetResultsDir = autoFill(state.nnUNetResultsDir, oldBase, v, "nnUNet_results"),
+                nnUNetRawDir = autoFill(state.nnUNetRawDir, oldBase, v, "nnUNet_raw"),
+                nnUNetPreprocessedDir = autoFill(state.nnUNetPreprocessedDir, oldBase, v, "nnUNet_preprocessed"),
             )
         }
         autoSave()
@@ -124,6 +126,15 @@ class SettingsViewModel @Inject constructor(
         appPreferences.showRunningJobNotifications = v
         if (!v) jobNotificationManager.cancelAllRunningNotifications()
         _uiState.update { it.copy(showRunningNotifications = v) }
+    }
+
+    fun onPluginEnabled(pluginId: String, enabled: Boolean) {
+        pluginManager.setPluginEnabled(pluginId, enabled)
+        _uiState.update { state ->
+            state.copy(pluginStates = state.pluginStates.map { ps ->
+                if (ps.pluginId == pluginId) ps.copy(isEnabled = enabled) else ps
+            })
+        }
     }
 
     fun onPluginSetting(pluginId: String, key: String, value: String) {

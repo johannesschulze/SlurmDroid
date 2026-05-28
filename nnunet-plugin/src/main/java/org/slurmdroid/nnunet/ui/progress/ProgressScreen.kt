@@ -1,5 +1,6 @@
 package org.slurmdroid.nnunet.ui.progress
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,11 +16,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,10 +35,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import org.slurmdroid.nnunet.NnUNetPluginApp
 import org.slurmdroid.nnunet.domain.FoldProgress
 import org.slurmdroid.nnunet.ui.NnUNetScaffold
+import org.slurmdroid.plugin.api.PluginContract
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProgressScreen(
     datasetName: String,
@@ -45,44 +55,84 @@ fun ProgressScreen(
     },
 ) {
     val folds by viewModel.folds.collectAsStateWithLifecycle()
+    val lastPollTime by viewModel.lastPollTime.collectAsStateWithLifecycle()
+    val lastPollError by viewModel.lastPollError.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(lastPollTime) { isRefreshing = false }
+    LaunchedEffect(isRefreshing) {
+        if (isRefreshing) { delay(30_000L); isRefreshing = false }
+    }
 
     NnUNetScaffold(title = datasetName, subtitle = "nnU-Net", onBack = onBack) { padding ->
-        when (val f = folds) {
-            null -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Waiting for next poll…",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                isRefreshing = true
+                context.sendBroadcast(
+                    Intent(PluginContract.ACTION_REQUEST_POLL)
+                        .setPackage(PluginContract.SLURMDROID_PACKAGE)
+                )
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            when (val f = folds) {
+                null -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    if (lastPollError != null) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp),
+                        ) {
+                            Text(
+                                "Error loading training progress",
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                lastPollError!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator()
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Waiting for next poll…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
-            }
-            else -> LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = padding.calculateTopPadding() + 8.dp,
-                    bottom = padding.calculateBottomPadding() + 16.dp,
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                item {
-                    Text(
-                        configName,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                }
-                items(f, key = { it.foldId }) { fold ->
-                    FoldProgressCard(fold)
-                }
-                if (f.size > 1) {
-                    item { SummaryCard(f) }
+                else -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = padding.calculateTopPadding() + 8.dp,
+                        bottom = padding.calculateBottomPadding() + 16.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    item {
+                        Text(
+                            configName,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    items(f, key = { it.foldId }) { fold ->
+                        FoldProgressCard(fold)
+                    }
+                    if (f.size > 1) {
+                        item { SummaryCard(f) }
+                    }
                 }
             }
         }

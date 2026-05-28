@@ -37,6 +37,12 @@ class NnUNetPlugin : ISlurmDroidPlugin {
     private val _lastPollTime = MutableStateFlow<Long?>(null)
     val lastPollTime: StateFlow<Long?> = _lastPollTime.asStateFlow()
 
+    private val _debugInfo = MutableStateFlow<String?>(null)
+    val debugInfo: StateFlow<String?> = _debugInfo.asStateFlow()
+
+    private val _lastPollError = MutableStateFlow<String?>(null)
+    val lastPollError: StateFlow<String?> = _lastPollError.asStateFlow()
+
     override fun getSettings(): List<PluginSetting> = listOf(
         PluginSetting.TextInput(
             key = "nnunet_base_dir",
@@ -59,11 +65,11 @@ class NnUNetPlugin : ISlurmDroidPlugin {
     override fun onSettingsChanged(values: Map<String, String>) {
         val base = values["nnunet_base_dir"]?.trim() ?: ""
         resultsDir = values["nnunet_results_dir"]?.trim()?.ifBlank { null }
-            ?: subDir(base, "results")
+            ?: subDir(base, "nnUNet_results")
         rawDir = values["nnunet_raw_dir"]?.trim()?.ifBlank { null }
-            ?: subDir(base, "raw")
+            ?: subDir(base, "nnUNet_raw")
         preprocessedDir = values["nnunet_preprocessed_dir"]?.trim()?.ifBlank { null }
-            ?: subDir(base, "preprocessed")
+            ?: subDir(base, "nnUNet_preprocessed")
     }
 
     private fun subDir(base: String, name: String) =
@@ -71,6 +77,15 @@ class NnUNetPlugin : ISlurmDroidPlugin {
 
     override fun poll(executor: (String) -> String) {
         _lastPollTime.value = System.currentTimeMillis()
+        try {
+            doPoll(executor)
+            _lastPollError.value = null
+        } catch (e: Exception) {
+            _lastPollError.value = e.message ?: "Unknown error"
+        }
+    }
+
+    private fun doPoll(executor: (String) -> String) {
         val resolvedResults = resolveDir(resultsDir, "\${nnUNet_results:-}", executor)
         val resolvedRaw = resolveDir(rawDir, "\${nnUNet_raw:-}", executor)
         val resolvedPrep = resolveDir(preprocessedDir, "\${nnUNet_preprocessed:-}", executor)
@@ -86,10 +101,28 @@ class NnUNetPlugin : ISlurmDroidPlugin {
                 add("find \"$resolvedPrep\" -mindepth 1 -maxdepth 1 -type d 2>/dev/null")
         }
         _anyDirConfigured.value = parts.isNotEmpty()
-        if (parts.isEmpty()) return
+        if (parts.isEmpty()) {
+            _debugInfo.value = buildString {
+                appendLine("Paths resolved to:")
+                appendLine("  results : ${resolvedResults ?: "(null)"}")
+                appendLine("  raw     : ${resolvedRaw ?: "(null)"}")
+                appendLine("  prep    : ${resolvedPrep ?: "(null)"}")
+                appendLine("All null → no dirs to search.")
+            }
+            return
+        }
 
         val effectiveResultsDir = resolvedResults ?: ""
         val dirOutput = executor("(${parts.joinToString("; ")}) | sort -u")
+        _debugInfo.value = buildString {
+            appendLine("Paths searched:")
+            appendLine("  results : ${resolvedResults ?: "(null)"}")
+            appendLine("  raw     : ${resolvedRaw ?: "(null)"}")
+            appendLine("  prep    : ${resolvedPrep ?: "(null)"}")
+            appendLine()
+            appendLine("find output:")
+            appendLine(dirOutput.ifBlank { "(empty)" })
+        }
         val datasets = dirOutput.lines()
             .filter { it.isNotBlank() }
             .map { it.substringAfterLast('/') }
@@ -101,11 +134,11 @@ class NnUNetPlugin : ISlurmDroidPlugin {
                     resultsPath = if (effectiveResultsDir.isNotBlank()) "$effectiveResultsDir/$name" else "",
                 )
             }
-        _datasets.value = datasets
-
+        // Set workflows first so the detail screen always has data by the time the list is tappable.
         _workflows.value = datasets.associate { dataset ->
             dataset.name to loadDatasetWorkflow(dataset, resolvedRaw, resolvedPrep, executor)
         }
+        _datasets.value = datasets
     }
 
     private fun loadDatasetWorkflow(
@@ -129,11 +162,14 @@ class NnUNetPlugin : ISlurmDroidPlugin {
             )
         }
 
+        // grep instead of cat: full logs can exceed the 1 MB AIDL transaction limit.
+        // The parser only needs "Epoch N" and "Epoch time: X s" lines.
         val logCmd = parsed.configPaths.joinToString("; ") { configPath ->
             val configName = configPath.substringAfterLast('/')
             "echo '---CONFIG $configName---'; " +
                 (0..4).joinToString("; ") { fold ->
-                    "echo '---FOLD $fold---'; cat \"$configPath/fold_$fold/training_log_\"*.txt 2>/dev/null"
+                    "echo '---FOLD $fold---'; grep -hE '(Epoch [0-9]|Epoch time:)' " +
+                        "\"$configPath/fold_$fold/training_log_\"*.txt 2>/dev/null"
                 }
         }
         val foldsByConfig = logParser.parseMultiConfig(executor(logCmd))
