@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import org.slurmdroid.core.PollStateHolder
 import org.slurmdroid.core.feature.FeatureRegistry
 import org.slurmdroid.core.notifications.JobNotificationManager
+import org.slurmdroid.core.plugin.PluginManager
 import org.slurmdroid.core.ssh.CommandExecutor
 import org.slurmdroid.core.ssh.SshManager
 import org.slurmdroid.features.slurm.data.SlurmRepository
@@ -43,6 +44,7 @@ class SshForegroundService : Service() {
     @Inject lateinit var sshManager: SshManager
     @Inject lateinit var commandExecutor: CommandExecutor
     @Inject lateinit var featureRegistry: FeatureRegistry
+    @Inject lateinit var pluginManager: PluginManager
     @Inject lateinit var slurmRepository: SlurmRepository
     @Inject lateinit var jobNotificationManager: JobNotificationManager
     @Inject lateinit var pollStateHolder: PollStateHolder
@@ -92,6 +94,7 @@ class SshForegroundService : Service() {
         featureRegistry.features.forEach { feature ->
             runCatching { feature.poll(commandExecutor) }
         }
+        runCatching { pluginManager.pollAll(commandExecutor) }
         pollStateHolder.lastPollCompletedAt.value = System.currentTimeMillis()
         jobNotificationManager.onPollComplete(
             slurmRepository.jobs.value,

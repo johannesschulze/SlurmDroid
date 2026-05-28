@@ -24,3 +24,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "SlurmDroid"
 include(":app")
+include(":plugin-api")
+include(":nnunet-plugin")

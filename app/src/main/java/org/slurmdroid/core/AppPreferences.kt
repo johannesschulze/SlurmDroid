@@ -26,6 +26,20 @@ class AppPreferences @Inject constructor(
         get() = prefs.getString(KEY_LAST_CMD, "") ?: ""
         set(v) { prefs.edit().putString(KEY_LAST_CMD, v).apply() }
 
+    fun isPluginEnabled(pluginId: String): Boolean =
+        prefs.getBoolean("plugin.$pluginId.enabled", false)
+
+    fun setPluginEnabled(pluginId: String, enabled: Boolean) {
+        prefs.edit().putBoolean("plugin.$pluginId.enabled", enabled).apply()
+    }
+
+    fun getPluginSetting(pluginId: String, key: String, default: String): String =
+        prefs.getString("plugin.$pluginId.$key", default) ?: default
+
+    fun setPluginSetting(pluginId: String, key: String, value: String) {
+        prefs.edit().putString("plugin.$pluginId.$key", value).apply()
+    }
+
     companion object {
         private const val PREFS_FILE = "slurmdroid_app_prefs"
         private const val KEY_RUNNING_NOTIFS = "show_running_job_notifications"

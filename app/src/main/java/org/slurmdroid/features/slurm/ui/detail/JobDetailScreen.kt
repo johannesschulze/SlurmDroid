@@ -219,12 +219,13 @@ private fun DetailContent(d: JobDetail, logFiles: List<String> = emptyList()) {
         }
 
         // ── Submission command ────────────────────────────────────────────────
-        if (d.fullCommand != null) {
+        val commandToShow = d.submitLine ?: d.fullCommand
+        if (commandToShow != null) {
             item {
                 Section("Submission") {
                     SelectionContainer {
                         Text(
-                            d.fullCommand,
+                            commandToShow,
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             ),

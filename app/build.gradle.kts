@@ -121,6 +121,9 @@ dependencies {
     // QR / ZXing
     implementation(libs.zxing.core)
 
+    // Plugin API
+    implementation(project(":plugin-api"))
+
     // Tests
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

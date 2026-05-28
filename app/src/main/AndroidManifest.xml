@@ -9,6 +9,16 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Required on API 30+ to discover plugin services and optional UI activities -->
+    <queries>
+        <intent>
+            <action android:name="org.slurmdroid.plugin.FEATURE" />
+        </intent>
+        <intent>
+            <action android:name="org.slurmdroid.plugin.FEATURE_ACTIVITY" />
+        </intent>
+    </queries>
+
     <application
         android:name=".SlurmDroidApp"
         android:allowBackup="true"
@@ -40,6 +50,14 @@
             android:name=".service.SshForegroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <receiver
+            android:name=".service.PollRequestReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="org.slurmdroid.action.REQUEST_POLL" />
+            </intent-filter>
+        </receiver>
 
         <!-- Disable default WorkManager init so Hilt's Configuration.Provider takes over -->
         <provider

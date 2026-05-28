@@ -67,7 +67,7 @@ The app is built around a `ServerFeature` plugin interface — Slurm is the firs
 ## Tech stack
 
 | Layer           | Library                                       |
-|-----------------|-----------------------------------------------|
+|-----------------|:----------------------------------------------|
 | UI              | Jetpack Compose + Material 3                  |
 | Navigation      | Navigation Compose                            |
 | DI              | Hilt                                          |
