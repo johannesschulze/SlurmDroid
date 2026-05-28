@@ -51,6 +51,7 @@ import org.slurmdroid.nnunet.NnUNetPluginApp
 import org.slurmdroid.nnunet.domain.NnUNetStageStatus
 import org.slurmdroid.nnunet.domain.NnUNetTrainingConfig
 import org.slurmdroid.nnunet.domain.NnUNetWorkflow
+import org.slurmdroid.nnunet.domain.parseDatasetName
 import org.slurmdroid.nnunet.ui.NnUNetScaffold
 import org.slurmdroid.plugin.api.PluginContract
 
@@ -77,7 +78,10 @@ fun DatasetDetailScreen(
         if (isRefreshing) { delay(30_000L); isRefreshing = false }
     }
 
-    NnUNetScaffold(title = datasetName, subtitle = "nnU-Net", onBack = onBack) { padding ->
+    val (datasetId, humanName) = parseDatasetName(datasetName)
+    val scaffoldTitle = if (humanName.isNotEmpty()) humanName else datasetName
+    val scaffoldSubtitle = if (datasetId.isNotEmpty()) "Dataset $datasetId · nnU-Net" else "nnU-Net"
+    NnUNetScaffold(title = scaffoldTitle, subtitle = scaffoldSubtitle, onBack = onBack) { padding ->
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
