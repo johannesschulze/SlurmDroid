@@ -5,6 +5,9 @@ A native Android app for monitoring and controlling a Slurm HPC cluster from you
 > [!IMPORTANT]
 > The app has until now only been tested for the [HPC-Cluster of the universities of the state
 > of Baden-Württemberg (Germany)](https://www.bwhpc.de/)
+> 
+> Please consider testing it against other clusters and file an issue if you
+> encounter any problems!
 
 ## Features
 
