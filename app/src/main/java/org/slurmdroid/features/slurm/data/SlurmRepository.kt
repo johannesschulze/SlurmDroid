@@ -127,6 +127,7 @@ class SlurmRepository @Inject constructor(
             val parsed = sacctParser.parse(result.data)
             if (parsed is Result.Success && parsed.data.isNotEmpty()) {
                 _sacctJobs.value = parsed.data.sortedByDescending { it.startTimestamp ?: 0L }
+                storeScontrolForRecentSacctJobs(parsed.data)
             }
         }
         // On failure keep existing data rather than wiping it
@@ -141,41 +142,67 @@ class SlurmRepository @Inject constructor(
         val dao = database.jobHistoryDao()
         val haveRaw = dao.getSlurmJobIdsWithScontrolRaw().toSet()
         val inDb = dao.getAllSlurmJobIds().toSet()
-
-        // Deduplicate by base ID so array tasks (4840886_2) map to their parent (4840886)
-        val baseIds = activeJobs.map { it.baseJobId() }.toSet()
-
+        val baseIds = activeJobs.map { baseJobId(it.jobId) }.toSet()
         for (baseId in baseIds) {
             if (baseId in haveRaw) continue
-
-            val raw = (commandExecutor.execute("scontrol show job $baseId") as? Result.Success)
-                ?.data?.takeIf { it.isNotBlank() } ?: continue
-
+            val raw = fetchScontrolRaw(baseId) ?: continue
             if (baseId in inDb) {
                 dao.updateScontrolRaw(baseId, raw)
             } else {
-                val submitLine = scontrolParser.parse(raw).submitLine
-                val rep = activeJobs.first { it.baseJobId() == baseId }
-                dao.insert(
-                    JobHistory(
-                        timestamp = System.currentTimeMillis(),
-                        jobName = rep.name,
-                        fullCommand = submitLine ?: "",
-                        partition = rep.partition,
-                        lastKnownStatus = rep.state,
-                        slurmJobId = baseId,
-                        scontrolRaw = raw,
-                    )
-                )
+                val rep = activeJobs.first { baseJobId(it.jobId) == baseId }
+                dao.insert(JobHistory(
+                    timestamp = System.currentTimeMillis(),
+                    jobName = rep.name,
+                    fullCommand = scontrolParser.parse(raw).submitLine ?: "",
+                    partition = rep.partition,
+                    lastKnownStatus = rep.state,
+                    slurmJobId = baseId,
+                    scontrolRaw = raw,
+                ))
             }
         }
     }
 
-    /** Returns the Slurm base job ID, stripping array task suffixes (e.g. "123_2" → "123"). */
-    private fun SlurmJob.baseJobId() =
-        if ('_' in jobId && jobId.substringAfterLast('_').toIntOrNull() != null)
-            jobId.substringBefore('_')
-        else jobId
+    private suspend fun storeScontrolForRecentSacctJobs(sacctJobs: List<SacctJob>) {
+        val cutoff = System.currentTimeMillis() - 2 * 3600 * 1000L
+        val recent = sacctJobs.filter { (it.startTimestamp ?: 0L) > cutoff }
+        if (recent.isEmpty()) return
+
+        val dao = database.jobHistoryDao()
+        val haveRaw = dao.getSlurmJobIdsWithScontrolRaw().toSet()
+        val inDb = dao.getAllSlurmJobIds().toSet()
+        val baseIds = recent.map { baseJobId(it.jobId) }.toSet()
+
+        for (baseId in baseIds) {
+            if (baseId in haveRaw) continue
+            val raw = fetchScontrolRaw(baseId) ?: continue
+            if (baseId in inDb) {
+                dao.updateScontrolRaw(baseId, raw)
+            } else {
+                val rep = recent.first { baseJobId(it.jobId) == baseId }
+                dao.insert(JobHistory(
+                    timestamp = System.currentTimeMillis(),
+                    jobName = rep.jobName,
+                    fullCommand = scontrolParser.parse(raw).submitLine ?: "",
+                    partition = rep.partition,
+                    lastKnownStatus = rep.state,
+                    slurmJobId = baseId,
+                    scontrolRaw = raw,
+                ))
+            }
+        }
+    }
+
+    private suspend fun fetchScontrolRaw(jobId: String): String? =
+        (commandExecutor.execute("scontrol show job $jobId") as? Result.Success)
+            ?.data
+            ?.takeIf { it.isNotBlank() && it.contains("JobId=") }
+
+    /** Strips array task suffixes so "4840886_2" → "4840886". */
+    private fun baseJobId(id: String) =
+        if ('_' in id && id.substringAfterLast('_').toIntOrNull() != null)
+            id.substringBefore('_')
+        else id
 
     // ── job detail ────────────────────────────────────────────────────────────
 
