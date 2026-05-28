@@ -1,10 +1,18 @@
 package org.slurmdroid.nnunet.domain
 
+data class EpochMetrics(
+    val epoch: Int,
+    val trainLoss: Float?,
+    val valLoss: Float?,
+    val pseudoDice: Float?,
+)
+
 data class FoldProgress(
     val foldId: Int,
     val epochsDone: Int,
     val totalEpochs: Int = 1000,
     val elapsedSeconds: Double,
+    val isRunning: Boolean = false,
 ) {
     val progressFraction: Float get() = (epochsDone.toFloat() / totalEpochs).coerceIn(0f, 1f)
     val avgSecondsPerEpoch: Double get() = if (epochsDone > 0) elapsedSeconds / epochsDone else 0.0

@@ -22,6 +22,8 @@ class NnUNetPlugin : ISlurmDroidPlugin {
 
     private val logParser = NnUNetLogParser()
 
+    @Volatile private var lastExecutor: ((String) -> String)? = null
+
     private val _datasets = MutableStateFlow<List<NnUNetDataset>>(emptyList())
     val datasets: StateFlow<List<NnUNetDataset>> = _datasets.asStateFlow()
 
@@ -76,6 +78,7 @@ class NnUNetPlugin : ISlurmDroidPlugin {
         if (base.isNotBlank()) "${base.trimEnd('/')}/$name" else ""
 
     override fun poll(executor: (String) -> String) {
+        lastExecutor = executor
         _lastPollTime.value = System.currentTimeMillis()
         try {
             doPoll(executor)
@@ -163,13 +166,16 @@ class NnUNetPlugin : ISlurmDroidPlugin {
         }
 
         // grep instead of cat: full logs can exceed the 1 MB AIDL transaction limit.
-        // The parser only needs "Epoch N" and "Epoch time: X s" lines.
+        // Only timing lines are fetched here; per-epoch metrics are fetched on demand via fetchFoldMetrics().
+        // "RUNNING" is emitted when the log was touched in the last 2 h (training active or recent).
         val logCmd = parsed.configPaths.joinToString("; ") { configPath ->
             val configName = configPath.substringAfterLast('/')
             "echo '---CONFIG $configName---'; " +
                 (0..4).joinToString("; ") { fold ->
-                    "echo '---FOLD $fold---'; grep -hE '(Epoch [0-9]|Epoch time:)' " +
-                        "\"$configPath/fold_$fold/training_log_\"*.txt 2>/dev/null"
+                    val foldLog = "\"$configPath/fold_$fold/training_log_\"*.txt"
+                    "echo '---FOLD $fold---'; " +
+                    "find \"$configPath/fold_$fold\" -name 'training_log_*.txt' -mmin -15 2>/dev/null | head -1 | grep -q . && echo RUNNING || true; " +
+                    "grep -hE '(Epoch [0-9]|Epoch time:)' $foldLog 2>/dev/null"
                 }
         }
         val foldsByConfig = logParser.parseMultiConfig(executor(logCmd))
@@ -282,6 +288,22 @@ class NnUNetPlugin : ISlurmDroidPlugin {
             configPaths = sections["CONFIGS"]?.filter { it.isNotBlank() } ?: emptyList(),
             postprocStatus = sectionStatus("POSTPROC", "done"),
         )
+    }
+
+    /**
+     * Fetches train_loss / val_loss / Pseudo dice for a single fold on demand.
+     * Uses the last known executor so this can be called outside of [poll].
+     * Returns an empty list if no executor is available yet or the fold has no log files.
+     */
+    fun fetchFoldMetrics(datasetName: String, configName: String, foldId: Int): List<org.slurmdroid.nnunet.domain.EpochMetrics> {
+        val exec = lastExecutor ?: return emptyList()
+        val resultsPath = _datasets.value.find { it.name == datasetName }
+            ?.resultsPath?.takeIf { it.isNotBlank() } ?: return emptyList()
+        val output = exec(
+            "grep -hE '(Epoch [0-9]|train_loss|val_loss|Pseudo dice)' " +
+                "\"$resultsPath/$configName/fold_$foldId/training_log_\"*.txt 2>/dev/null"
+        )
+        return logParser.parseFoldMetrics(output)
     }
 
     private fun resolveDir(override: String, envExpr: String, executor: (String) -> String): String? {

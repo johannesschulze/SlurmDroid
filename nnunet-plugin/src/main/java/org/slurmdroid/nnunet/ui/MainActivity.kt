@@ -13,6 +13,7 @@ import androidx.navigation.compose.rememberNavController
 import org.slurmdroid.nnunet.NnUNetPluginApp
 import org.slurmdroid.nnunet.ui.datasets.DatasetListScreen
 import org.slurmdroid.nnunet.ui.detail.DatasetDetailScreen
+import org.slurmdroid.nnunet.ui.fold.FoldDetailScreen
 import org.slurmdroid.nnunet.ui.progress.ProgressScreen
 import org.slurmdroid.plugin.api.ui.PluginDrawerScaffold
 import org.slurmdroid.plugin.api.ui.PluginTheme
@@ -68,6 +69,23 @@ class MainActivity : ComponentActivity() {
                             ProgressScreen(
                                 datasetName = datasetName,
                                 configName = configName,
+                                onBack = { navController.popBackStack() },
+                                onNavigateToFoldDetail = { foldId ->
+                                    navController.navigate("fold_detail/$datasetName/$configName/$foldId")
+                                },
+                            )
+                        }
+                        composable("fold_detail/{datasetName}/{configName}/{foldId}") { backStack ->
+                            val datasetName = backStack.arguments?.getString("datasetName")
+                                ?: return@composable
+                            val configName = backStack.arguments?.getString("configName")
+                                ?: return@composable
+                            val foldId = backStack.arguments?.getString("foldId")?.toIntOrNull()
+                                ?: return@composable
+                            FoldDetailScreen(
+                                datasetName = datasetName,
+                                configName = configName,
+                                foldId = foldId,
                                 onBack = { navController.popBackStack() },
                             )
                         }
